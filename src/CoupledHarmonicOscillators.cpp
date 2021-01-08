@@ -287,7 +287,7 @@ struct MyApp : public App {
     }
 
     // handle hidpi displays for imgui (mostly for linux and windows)
-    ImGui::GetIO().FontGlobalScale = getCurrentWindowScale();
+    // ImGui::GetIO().FontGlobalScale = getCurrentWindowScale();
 
     if (drawGUI) {
       imguiBeginFrame();
@@ -494,9 +494,11 @@ struct MyApp : public App {
 };
 
 int main() {
-  MyApp app;
-  app.configureAudio();
+  AudioDevice dev = AudioDevice::defaultOutput();
+  dev.print();
 
+  MyApp app;
+  app.configureAudio(dev, dev.defaultSampleRate(), 1024, dev.channelsOutMax(), dev.channelsInMax());
   app.start();
   return 0;
 }
