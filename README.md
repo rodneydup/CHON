@@ -1,13 +1,21 @@
-# allotemplate
-Template for creating applications using allolib. This template is suitable for large projects wil multiple files and dependencies where you need more control. If you are prototyping single files or want to explore the allolib examples, use the [allolib_playground repo](https://github.com/AlloSphere-Research-Group/allolib_playground).
+# CHON
+Coupled Harmonic Oscillator Network (CHON) is a novel application for generating tactile sonic gestures
+and textures using a simulation of a physical dynamical system as a musical interface. The physical system is
+a network of particles connected by a spring-like force. The user sets the system into motion by displacing a
+particle, which causes a chain reaction governed by Newtonian mechanics. The system generates complex yet
+tangible control data that can be used to drive sound synthesis parameters.
 
-Developed by:
+The visual interface is a 3D rendering of the particle system. The user interacts directly with the particles
+in the visual simulation using a computer mouse. A 2D graph can also be displayed which visualizes the
+displacement of each particle along a given axis. The instrument generates a stream of OSC data from each
+particle, making it a versatile tool for generating up to hundreds of control signals that are linked by physical
+laws.
 
-AlloSphere Research Group
+The application is written in C++ and uses the Allolib framework extensively.
 
-University of California, Santa Barbara
+![](CHON.png)
 
-# Installation
+# Building
 
 ## Dependencies
 
@@ -20,37 +28,9 @@ cmake version 3.0 or higher
 ## How to setup
 On a bash shell:
 
-    git clone https://github.com/AlloSphere-Research-Group/allotemplate.git <project folder name>
-    cd <project folder name>
-    ./init.sh
-
-### Optional: Pushing to your own git repository
-You can convert the folder into a git repository of your choice with the following commands. (Example is using a github repository: replace username and repository name)
-
-    git remote add origin git@github.com:username/new_repo
-
-After the initial commit, set the upstream with the following command.
-
-    git push -u origin master
-
-## How to compile / run
-src folder contains the initial test code you can replace.
-
-Edit CMakeLists.txt and run.sh to match your code.
-
-On a bash shell:
-
+    git clone https://github.com/rodneydup/CHON
+    cd CHON
     ./configure.sh
-
-This will execute cmake on the project
-
     ./run.sh
 
 This will compile the project, and run the binary if compilation is successful.
-
-## How to perform a distclean
-If you need to delete the distribution,
-
-    ./distclean.sh
-
-should recursively clean all the build directories of the project including those of allolib and its submodules.
