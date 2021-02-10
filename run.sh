@@ -8,5 +8,5 @@
 
 result=$?
 if [ ${result} == 0 ]; then
-  ./bin/CoupledHarmonicOscillators
+  ./bin/CHON
 fi

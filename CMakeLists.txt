@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(CoupledHarmonicOscillators)
+project(CHON)
 
 # name of application. replace 'app' with desired app name
-set(APP_NAME CoupledHarmonicOscillators)
+set(APP_NAME CHON)
 
 # path to main source file
-add_executable(${APP_NAME} src/CoupledHarmonicOscillators.cpp)
+add_executable(${APP_NAME} src/CHON.cpp)
 
 # add allolib as a subdirectory to the project
 add_subdirectory(allolib)
