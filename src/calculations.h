@@ -1,119 +1,109 @@
 #include "./structs.h"
 
-std::array<double, 3> calculateForcesFixed(Particle &first, Particle &second, double springLength, double k, bool freedom[3])
-{
+std::array<double, 3> calculateForcesFixed(Particle &first, Particle &second, double springLength,
+                                           double k, bool freedom[3]) {
+  std::array<double, 3> forceComponents = {0, 0, 0};      // Force Components
+  int dimensions = freedom[0] + freedom[1] + freedom[2];  // how many axes are activated
+  if (dimensions == 0) {
+    for (int i = 0; i < 3; i++) first.velocity[i] = 0;
+    return forceComponents;  // return no force if no axis activated
+  }
 
-    std::array<double, 3> forceComponents = {0, 0, 0};     // Force Components
-    int dimensions = freedom[0] + freedom[1] + freedom[2]; // how many axes are activated
-    if (dimensions == 0)
-    {
-        for (int i = 0; i < 3; i++)
-            first.velocity[i] = 0;
-        return forceComponents; // return no force if no axis activated
-    }
+  double x = ((second.x() - first.x()) - (second.equilibrium[0] - first.equilibrium[0])) * k;
+  double y = ((second.y() - first.y()) - (second.equilibrium[1] - first.equilibrium[1])) * k;
+  double z = ((second.z() - first.z()) - (second.equilibrium[2] - first.equilibrium[2])) * k;
 
-    double x = ((second.x() - first.x()) - (second.equilibrium[0] - first.equilibrium[0])) * k;
-    double y = ((second.y() - first.y()) - (second.equilibrium[1] - first.equilibrium[1])) * k;
-    double z = ((second.z() - first.z()) - (second.equilibrium[2] - first.equilibrium[2])) * k;
-
-    if (freedom[0])
-        forceComponents[0] = x;
-    if (freedom[1])
-        forceComponents[1] = y;
-    if (freedom[2])
-        forceComponents[2] = z;
-    return forceComponents;
+  if (freedom[0]) forceComponents[0] = x;
+  if (freedom[1]) forceComponents[1] = y;
+  if (freedom[2]) forceComponents[2] = z;
+  return forceComponents;
 }
 
-std::array<double, 3> calculateForcesOmni(Particle &first, Particle &second, double springLength, double k, bool freedom[3])
-{ // Calculate 3D forces for non-fixed spring
+std::array<double, 3> calculateForcesOmni(
+  Particle &first, Particle &second, double springLength, double k,
+  bool freedom[3]) {  // Calculate 3D forces for non-fixed spring
 
-    std::array<double, 3> forceComponents = {0, 0, 0};     // Force Components
-    int dimensions = freedom[0] + freedom[1] + freedom[2]; // how many axes are activated
-    if (dimensions == 0)
-    {
-        for (int i = 0; i < 3; i++)
-            first.velocity[i] = 0;
-        return forceComponents; // return no force if no axis activated
-    }
+  std::array<double, 3> forceComponents = {0, 0, 0};      // Force Components
+  int dimensions = freedom[0] + freedom[1] + freedom[2];  // how many axes are activated
+  if (dimensions == 0) {
+    for (int i = 0; i < 3; i++) first.velocity[i] = 0;
+    return forceComponents;  // return no force if no axis activated
+  }
 
-    double x = second.x() - first.x();
-    double y = second.y() - first.y();
-    double z = second.z() - first.z();
+  double x = second.x() - first.x();
+  double y = second.y() - first.y();
+  double z = second.z() - first.z();
 
-    double r = sqrtf(powf(x, 2) + powf(y, 2) + powf(z, 2)); // magnitude of force
+  double r = sqrtf(powf(x, 2) + powf(y, 2) + powf(z, 2));  // magnitude of force
 
-    if (r == 0)
-        x, y, z, r = 0.0001;
+  if (r == 0) x, y, z, r = 0.0001;
 
-    x = (x / r) * ((r - springLength) * k);
-    y = (y / r) * ((r - springLength) * k);
-    z = (z / r) * ((r - springLength) * k);
+  x = (x / r) * ((r - springLength) * k);
+  y = (y / r) * ((r - springLength) * k);
+  z = (z / r) * ((r - springLength) * k);
 
-    if (freedom[0])
-        forceComponents[0] = x;
-    if (freedom[1])
-        forceComponents[1] = y;
-    if (freedom[2])
-        forceComponents[2] = z;
-    return forceComponents;
+  if (freedom[0]) forceComponents[0] = x;
+  if (freedom[1]) forceComponents[1] = y;
+  if (freedom[2]) forceComponents[2] = z;
+  return forceComponents;
 }
 
 // Update velocities of a 1-D array of particles
-template <size_t N>
-void updateVelocities(std::array<Particle, N> &particle, double springLength, bool freedom[3], std::array<double, N - 1> &k, float m, float b, int step)
-{
-    for (int i = 0; i < N; i++) // set all acceleration to zero
-    {
-        for (int j = 0; j < 3; j++)
-            particle[i].acceleration[j] = 0;
-    }
+void updateVelocities(std::vector<Particle> &particle, double springLength, bool freedom[3],
+                      std::vector<double> &k, float m, float b, int step) {
+  int N = particle.size();
+  for (int i = 0; i < N; i++)  // set all acceleration to zero
+  {
+    for (int j = 0; j < 3; j++) particle[i].acceleration[j] = 0;
+  }
 
-    for (int i = 0; i < N; i++)
-    {
-        if (i < N - 1)
-        {
-            std::array<double, 3> forces = calculateForcesFixed(particle[i], particle[i + 1], springLength, k[i], freedom);
-            for (int j = 0; j < 3; j++)
-            {
-                particle[i].acceleration[j] += forces[j];                                                        // acceleration due to right particle spring
-                particle[i + 1].acceleration[j] -= forces[j];                                                    // opposite acceleration on right particle
-                particle[i].acceleration[j] = (particle[i].acceleration[j] / m) - (particle[i].velocity[j] * b); // (kx / m) - (vb)
-                particle[i].velocity[j] += particle[i].acceleration[j] / step;                                   // update velocity dividing by frame rate
-                // if (!freedom[j]) particle[i].velocity[j] = 0;
-            }
-        }
+  for (int i = 0; i < N; i++) {
+    if (i < N - 1) {
+      std::array<double, 3> forces =
+        calculateForcesFixed(particle[i], particle[i + 1], springLength, k[i], freedom);
+      for (int j = 0; j < 3; j++) {
+        particle[i].acceleration[j] += forces[j];      // acceleration due to right particle spring
+        particle[i + 1].acceleration[j] -= forces[j];  // opposite acceleration on right particle
+        particle[i].acceleration[j] =
+          (particle[i].acceleration[j] / m) - (particle[i].velocity[j] * b);  // (kx / m) - (vb)
+        particle[i].velocity[j] +=
+          particle[i].acceleration[j] / step;  // update velocity dividing by frame rate
+                                               // if (!freedom[j]) particle[i].velocity[j] = 0;
+      }
     }
+  }
 }
 
 // Update velocities of a 2-D array of particles
 template <size_t NY, size_t NX>
-void updateVelocities2D(std::array<std::array<Particle, NY>, NX> &particle, double springLength, bool freedom[3], float kH, float kV, float m, float b, int step)
-{
-    for (int x = 0; x < NX; x++) // set all acceleration to zero
-        for (int y = 0; y < NY; y++)
-        {
-            for (int j = 0; j < 3; j++)
-                particle[x][y].acceleration[j] = 0;
+void updateVelocities2D(std::array<std::array<Particle, NY>, NX> &particle, double springLength,
+                        bool freedom[3], float kH, float kV, float m, float b, int step) {
+  for (int x = 0; x < NX; x++)  // set all acceleration to zero
+    for (int y = 0; y < NY; y++) {
+      for (int j = 0; j < 3; j++) particle[x][y].acceleration[j] = 0;
+    }
+  for (int y = 0; y < NY; y++)
+    for (int x = 0; x < NX; x++) {
+      if (x < NX - 1 && y < NY - 1) {
+        std::array<double, 3> forcesX = {0, 0, 0};
+        std::array<double, 3> forcesY = {0, 0, 0};
+        forcesX =
+          calculateForcesFixed(particle[x][y], particle[x + 1][y], springLength, kH, freedom);
+        forcesY =
+          calculateForcesFixed(particle[x][y], particle[x][y + 1], springLength, kV, freedom);
+        for (int j = 0; j < 3; j++) {
+          particle[x][y].acceleration[j] +=
+            forcesX[j] + forcesY[j];  // acceleration due to right and above particle spring
+          particle[x + 1][y].acceleration[j] -=
+            forcesX[j];  // opposite acceleration on right particle
+          particle[x][y + 1].acceleration[j] -=
+            forcesY[j];  // opposite acceleration on above particle
+          particle[x][y].acceleration[j] = (particle[x][y].acceleration[j] / m) -
+                                           (particle[x][y].velocity[j] * b);  // (kx / m) - (vb)
+          particle[x][y].velocity[j] +=
+            particle[x][y].acceleration[j] / step;  // update velocity dividing by frame rate
+                                                    // if (!freedom[j]) particle[i].velocity[j] = 0;
         }
-    for (int y = 0; y < NY; y++)
-        for (int x = 0; x < NX; x++)
-        {
-            if (x < NX - 1 && y < NY - 1)
-            {
-                std::array<double, 3> forcesX = {0, 0, 0};
-                std::array<double, 3> forcesY = {0, 0, 0};
-                forcesX = calculateForcesFixed(particle[x][y], particle[x + 1][y], springLength, kH, freedom);
-                forcesY = calculateForcesFixed(particle[x][y], particle[x][y + 1], springLength, kV, freedom);
-                for (int j = 0; j < 3; j++)
-                {
-                    particle[x][y].acceleration[j] += forcesX[j] + forcesY[j];                                           // acceleration due to right and above particle spring
-                    particle[x + 1][y].acceleration[j] -= forcesX[j];                                                    // opposite acceleration on right particle
-                    particle[x][y + 1].acceleration[j] -= forcesY[j];                                                    // opposite acceleration on above particle
-                    particle[x][y].acceleration[j] = (particle[x][y].acceleration[j] / m) - (particle[x][y].velocity[j] * b); // (kx / m) - (vb)
-                    particle[x][y].velocity[j] += particle[x][y].acceleration[j] / step;                                   // update velocity dividing by frame rate
-                    // if (!freedom[j]) particle[i].velocity[j] = 0;
-                }
-            }
-        }
+      }
+    }
 }

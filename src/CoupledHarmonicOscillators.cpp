@@ -16,7 +16,7 @@
 using namespace al;
 
 // NUMBER OF PARTICLES
-#define nX (4)  // NUMBER OF PARTICLES on X Axis
+// #define nX (4)  // NUMBER OF PARTICLES on X Axis
 
 struct MyApp : public App {
   MyApp() {
@@ -28,20 +28,22 @@ struct MyApp : public App {
       gui << newSpring->bundle;
     }
   }
-
   Mesh mesh;
-  std::array<Particle, nX + 2> particle;  // create particles (plus 2 boundary particles)
-  int picked = -1;                        // variable keeping track of which particle is selected
-  std::array<double, nX + 1> k;           // Spring Constants
-  double springLength = 50.0f / (nX + 1);
+  int nX = 4;
+  std::vector<Particle> particle;  // create particles (plus 2 boundary particles)
+  std::vector<double> k;           // Spring Constants
+  double springLength;
   bool freedom[3] = {1, 0, 0};
   Texture texBlur;  // blurring filter for graph
   int amCounter;    // AM incrementor
+  int picked = -1;  // variable keeping track of which particle is selected
+  std::mutex resetLock;
 
   Reverb<float> reverb;
   gam::NoiseWhite<> tick;
   bool drawGUI = 1;
 
+  ParameterInt xParticles{"X axis", "Network", 4, "", 1, 100};    // number of particles on x axis
   Parameter mAll{"Mass All", "physics", 1.0f, "", 1.0f, 100.0f};  // Master mass
   Parameter b{"Damping", "physics", 0.0f, "", 0.0f, 5.0f};        // damping
   ParameterBool xFree{"X axis", "Degrees of Freedom", 1};
@@ -73,6 +75,16 @@ struct MyApp : public App {
   Parameter fmWidth{"FM Width", "Synthesis", 2.0f, "", 0.1f, 5.0f};             // FM Width
   Parameter fundamental{"Fundamental", "Synthesis", 60.0f, "", 1.0f, 2000.0f};  // Fundamental
 
+  const char *pentScale[25] = {"c3", "d3", "f3", "g3", "a3", "c4", "d4", "f4", "g4",
+                               "a4", "c5", "d5", "f5", "g5", "a5", "c6", "d6", "f6",
+                               "g6", "a6", "c7", "d7", "f7", "g7", "a7"};
+  const char *majScale[35] = {"c3", "d3", "e3", "f3", "g3", "a3", "b3", "c4", "d4",
+                              "e4", "f4", "g4", "a4", "b4", "c5", "d5", "e5", "f5",
+                              "g5", "a5", "b5", "c6", "d6", "e6", "f6", "g6", "a6",
+                              "b6", "c7", "d7", "e7", "f7", "g7", "a7", "b7"};
+  int OTSeries[100];
+  float majIntervals[7] = {1, 9.0 / 8, 5.0 / 4, 4.0 / 3, 3.0 / 2, 5.0 / 3, 15.0 / 8};
+
   int port = 16447;             // osc port
   char addr[10] = "127.0.0.1";  // ip address
   osc::Send client;             // create an osc client
@@ -87,6 +99,11 @@ struct MyApp : public App {
 
   void onInit() {  // Called on app start
     std::cout << "onInit()" << std::endl;
+
+    particle.resize(nX + 2);
+    k.resize(nX + 1);
+    springLength = 50.0f / (nX + 1);
+
     reverb.bandwidth(0.9);  // Low-pass amount on input, in [0,1]
     reverb.damping(0.1);    // High-frequency damping, in [0,1]
     reverb.decay(0.15);     // Tail decay factor, in [0,1]
@@ -134,17 +151,6 @@ struct MyApp : public App {
     addIcosphere(mesh, springLength / 5, 4);
     mesh.generateNormals();
 
-    // const char *pentScale[25] = {"c3", "d3", "f3", "g3", "a3", "c4", "d4", "f4", "g4", "a4",
-    // "c5", "d5", "f5", "g5", "a5", "c6", "d6", "f6", "g6", "a6", "c7", "d7", "f7", "g7",
-    // "a7"};
-    const char *majScale[35] = {"c3", "d3", "e3", "f3", "g3", "a3", "b3", "c4", "d4",
-                                "e4", "f4", "g4", "a4", "b4", "c5", "d5", "e5", "f5",
-                                "g5", "a5", "b5", "c6", "d6", "e6", "f6", "g6", "a6",
-                                "b6", "c7", "d7", "e7", "f7", "g7", "a7", "b7"};
-    int OTSeries[100];
-    // float majScale[100];
-    float majIntervals[7] = {1, 9.0 / 8, 5.0 / 4, 4.0 / 3, 3.0 / 2, 5.0 / 3, 15.0 / 8};
-
     for (int i = 0; i < 100; i++) {
       OTSeries[i] = 60 * (i + 1);
       // majScale[i] = 60 * pow(2, floor(((i + 1) % 50) / 7.0)) * majIntervals[i % 7];
@@ -168,11 +174,56 @@ struct MyApp : public App {
     navControl().useMouse(false);
   }
 
+  void chonReset() {
+    resetLock.lock();
+
+    nX = xParticles;
+
+    particle.clear();
+    k.clear();
+    particle.resize(nX + 2);
+    k.resize(nX + 1);
+    springLength = 50.0f / (nX + 1);
+
+    mesh.reset();
+    addIcosphere(mesh, springLength / 5, 4);
+    mesh.generateNormals();
+
+    for (int i = 0; i <= nX + 1; i++) {
+      particle[i].particle.set(mesh);
+      particle[i].equilibrium[0] = (i * springLength) - ((springLength * (nX + 1)) / 2);
+      particle[i].equilibrium[1] = 0;
+      particle[i].equilibrium[2] = 0;
+      particle[i].particle.pose.setPos(particle[i].equilibrium);
+      particle[i].graph.primitive(Mesh::LINE_STRIP);
+      particle[i].oscillator.freq(100 * (i));
+      particle[i].bell.freq(gam::scl::freq(majScale[i % (sizeof(majScale) / 8)]));
+      // particle[i + 1].bell.freq(majScale[i % 100]);
+      particle[i].mass = mAll;
+      particle[i].amSmooth.setTime(40.0f);
+      particle[i].fmSmooth.setTime(40.0f);
+    }
+
+    springs.clear();
+    for (int i = 0; i <= nX; i++) {
+      // Create element
+      auto *newSpring = new Spring;
+      springs.push_back(newSpring);
+      // Register its parameter bundle with the ControlGUI
+      gui << newSpring->bundle;
+    }
+
+    resetLock.unlock();
+  }
+
   void onAnimate(double dt) override {  // Called once before drawing
+
+    if (nX != xParticles) chonReset();
 
     float w = width();
     float h = height();
-    for (int i = 0; i <= nX; i++) {
+
+    for (int i = 0; i < springs.size(); i++) {
       k[i] = springs[i]->k;
     }
 
@@ -191,7 +242,6 @@ struct MyApp : public App {
           if (!zFree) particle[i].z(particle[i].equilibrium[2]);
         } else {  // add velocities
           particle[i].addVelocity();
-          // std::cout << "got here!" << std::endl;
         }
 
         particle[i].updateDisplacement();
@@ -293,6 +343,7 @@ struct MyApp : public App {
       imguiBeginFrame();
 
       ParameterGUI::beginPanel("Physics");
+      ParameterGUI::drawParameterInt(&xParticles, "");
       gui.drawBundleGUI();
       ParameterGUI::drawParameter(&mAll);
       ParameterGUI::drawParameter(&b);
@@ -364,41 +415,43 @@ struct MyApp : public App {
     while (io()) {
       double s = 0;
       // if (am) amCounter -= 1;
-
-      if (AdditiveSynthOn) {
-        for (int i = 1; i <= nX; i++) {  // add all oscillator samples to be sent to output
-          if (i * fundamental < 20000) {
-            if (fm) {
-              particle[i].FM.freq((i + 3) * fundamental * fmFreqMultiplier);
-              particle[i].fmSmooth.process();
-              particle[i].oscillator.freq(
-                (i * fundamental) + (particle[i].FM() * particle[i].fmSmooth.getCurrentValue() *
-                                     fmWidth * 1000));  // set freq
-            } else {
-              particle[i].oscillator.freq((i + 3) * fundamental);  // set freq
+      if (resetLock.try_lock()) {
+        resetLock.unlock();
+        if (AdditiveSynthOn) {
+          for (int i = 1; i <= nX; i++) {  // add all oscillator samples to be sent to output
+            if (i * fundamental < 20000) {
+              if (fm) {
+                particle[i].FM.freq((i + 3) * fundamental * fmFreqMultiplier);
+                particle[i].fmSmooth.process();
+                particle[i].oscillator.freq(
+                  (i * fundamental) + (particle[i].FM() * particle[i].fmSmooth.getCurrentValue() *
+                                       fmWidth * 1000));  // set freq
+              } else {
+                particle[i].oscillator.freq((i + 3) * fundamental);  // set freq
+              }
+              double sampleToAdd = particle[i].oscillator() * additiveVolume;  // scale
+              sampleToAdd = sampleToAdd / (double(i) + 1.0);  // scale for harmonics
+              if (am) {
+                particle[i].amSmooth.process();  // progress smoothvalue
+                sampleToAdd =
+                  sampleToAdd *
+                  particle[i].amSmooth.getCurrentValue();  // scale for amplitude modulation
+              }
+              s += sampleToAdd;
             }
-            double sampleToAdd = particle[i].oscillator() * additiveVolume;  // scale
-            sampleToAdd = sampleToAdd / (double(i) + 1.0);                   // scale for harmonics
-            if (am) {
-              particle[i].amSmooth.process();  // progress smoothvalue
-              sampleToAdd =
-                sampleToAdd *
-                particle[i].amSmooth.getCurrentValue();  // scale for amplitude modulation
-            }
-            s += sampleToAdd;
           }
         }
-      }
 
-      if (bellSynthOn) {
-        for (int i = 1; i <= nX; i++) {
-          if (particle[i].zeroTrigger[bellAxis]) {
-            particle[i].bellEnv = 1;
+        if (bellSynthOn) {
+          for (int i = 1; i <= nX; i++) {
+            if (particle[i].zeroTrigger[bellAxis]) {
+              particle[i].bellEnv = 1;
+            }
+            if (particle[i].bellEnv > 0) particle[i].bellEnv -= 0.00005;
+            float env = particle[i].getBellEnv();
+            s += particle[i].bell() * 0.1 * bellVolume * env;
+            particle[i].zeroTrigger[bellAxis] = 0;
           }
-          if (particle[i].bellEnv > 0) particle[i].bellEnv -= 0.00005;
-          float env = particle[i].getBellEnv();
-          s += particle[i].bell() * 0.1 * bellVolume * env;
-          particle[i].zeroTrigger[bellAxis] = 0;
         }
       }
 
