@@ -1,5 +1,7 @@
 #!/bin/bash
 
+git submodule update --init --recursive
+
 (
   mkdir -p build
   cd build
@@ -16,4 +18,3 @@
   cd debug
   cmake -DCMAKE_BUILD_TYPE=Debug -Wno-deprecated -DBUILD_EXAMPLES=0 ../..
 )
-
