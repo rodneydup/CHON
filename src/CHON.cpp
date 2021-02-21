@@ -5,12 +5,14 @@
 void CHON::onInit() {  // Called on app start
   std::cout << "onInit()" << std::endl;
 
+  gui = std::make_unique<BundleGUIManager>();
+
   for (int i = 0; i <= nX; i++) {
     // Create element
     auto *newSpring = new Spring;
     springs.push_back(newSpring);
     // Register its parameter bundle with the ControlGUI
-    gui << newSpring->bundle;
+    *gui << newSpring->bundle;
   }
 
   particle.resize(nX + 2);
@@ -116,14 +118,15 @@ void CHON::chonReset() {
     particle[i].amSmooth.setTime(40.0f);
     particle[i].fmSmooth.setTime(40.0f);
   }
-
+  gui.reset(new BundleGUIManager());
   springs.clear();
   for (int i = 0; i <= nX; i++) {
     // Create element
     auto *newSpring = new Spring;
     springs.push_back(newSpring);
     // Register its parameter bundle with the ControlGUI
-    gui << newSpring->bundle;
+
+    *gui << newSpring->bundle;
   }
 
   resetLock.unlock();
@@ -258,7 +261,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ImGui::DragInt("Particle Count (x)", &xParticles, 1.0f, 1, 100);
     ImGui::Checkbox("2D", &twoDimensions);
     // ParameterGUI::drawParameterInt(&xParticles, "");
-    gui.drawBundleGUI();
+    gui->drawBundleGUI();
     ParameterGUI::drawParameter(&mAll);
     ParameterGUI::drawParameter(&b);
     ImGui::Text("Degrees of Freedom");

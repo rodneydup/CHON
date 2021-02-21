@@ -71,7 +71,7 @@ class CHON : public App {
   int yParticles = 4;  // Parameter for y particles count
   bool twoDimensions = false;
   std::vector<Spring *> springs;
-  BundleGUIManager gui;
+  std::unique_ptr<BundleGUIManager> gui;
 
   std::vector<Particle> particle;  // create particles (plus 2 boundary particles)
   std::vector<double> k;           // Spring Constants
