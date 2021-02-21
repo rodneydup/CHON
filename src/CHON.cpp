@@ -1,3 +1,10 @@
+// To Do:
+// - Add 2D back into the app
+// - Allow more variables to be sent by OSC (velocity, potential energy)
+// - add presets saving and loading
+// - Work on GUI
+//
+
 #include "CHON.hpp"
 
 #include <array>
