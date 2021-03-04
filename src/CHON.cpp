@@ -3,7 +3,6 @@
 // - Allow more variables to be sent by OSC (velocity, potential energy)
 // - add presets saving and loading
 // - Work on GUI
-//
 
 #include "CHON.hpp"
 
@@ -265,9 +264,11 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     imguiBeginFrame();
 
     ParameterGUI::beginPanel("Physics");
-    ImGui::DragInt("Particle Count (x)", &xParticles, 1.0f, 1, 100);
+    ImGui::Text("Particle Count");
+    ImGui::DragInt("x", &xParticles, 1.0f, 1, 100);
+    ImGui::SameLine();
+    ImGui::DragInt("y", &yParticles, 1.0f, 1, 100);
     ImGui::Checkbox("2D", &twoDimensions);
-    // ParameterGUI::drawParameterInt(&xParticles, "");
     gui->drawBundleGUI();
     ParameterGUI::drawParameter(&mAll);
     ParameterGUI::drawParameter(&b);
