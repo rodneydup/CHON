@@ -266,8 +266,8 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::beginPanel("Physics");
     ImGui::Text("Particle Count");
     ImGui::DragInt("x", &xParticles, 1.0f, 1, 100);
-    ImGui::SameLine();
-    ImGui::DragInt("y", &yParticles, 1.0f, 1, 100);
+    // ImGui::SameLine();
+    // ImGui::DragInt("y", &yParticles, 1.0f, 1, 100);
     ImGui::Checkbox("2D", &twoDimensions);
     gui->drawBundleGUI();
     ParameterGUI::drawParameter(&mAll);
