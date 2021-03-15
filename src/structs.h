@@ -50,7 +50,7 @@ class SmoothValue {
 };
 
 struct Spring {
-  al::Parameter k{"Spring Stiffness", "physics", 1.0f, "", 1.0f, 100.0f};
+  al::Parameter k{"Stiffness", "physics", 1.0f, "", 1.0f, 100.0f};
   al::ParameterBundle bundle{"springs"};
   Spring() { bundle << k; }
 };

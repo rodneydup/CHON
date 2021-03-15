@@ -32,7 +32,7 @@ void CHON::onInit() {  // Called on app start
   client.open(port, addr);
   texBlur.filter(Texture::LINEAR);
   nav().pullBack(60);
-  nav().pos(0, 7, 0);
+  nav().pos(-5, 7, 20);
   nav().setHome();
   xFree.registerChangeCallback([&](bool x) {
     if (!x) {
@@ -62,6 +62,29 @@ void CHON::onInit() {  // Called on app start
   fmAxis.setElements({"x", "y", "z"});
   amAxis.setElements({"x", "y", "z"});
   bellAxis.setElements({"x", "y", "z"});
+  bellScale.setElements({"Pentatonic", "Major", "Chromatic", "Harmonics", "Bohlen-Pierce"});
+
+  bellScale.registerChangeCallback([&](int tuning) {
+    switch (tuning) {
+      case 0:
+        scale = &pentScale;
+        break;
+      case 1:
+        scale = &majScale;
+        break;
+      case 2:
+        scale = &chromScale;
+        break;
+      case 3:
+        scale = &otSeries;
+        break;
+      case 4:
+        scale = &bpScale;
+        break;
+      default:
+        break;
+    }
+  });
 }
 
 void CHON::onCreate() {  // Called when graphics context is available
@@ -69,13 +92,12 @@ void CHON::onCreate() {  // Called when graphics context is available
 
   imguiInit();
 
+  bodyFont = ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(&RobotoMedium_compressed_data,
+                                                                  RobotoMedium_compressed_size, 16);
+  titleFont = ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(
+    &RobotoMedium_compressed_data, RobotoMedium_compressed_size, 20);
   addIcosphere(mesh, springLength / 5, 4);
   mesh.generateNormals();
-
-  for (int i = 0; i < 100; i++) {
-    OTSeries[i] = 60 * (i + 1);
-    // majScale[i] = 60 * pow(2, floor(((i + 1) % 50) / 7.0)) * majIntervals[i % 7];
-  }
 
   for (int i = 0; i <= nX + 1; i++) {
     particle[i].particle.set(mesh);
@@ -84,15 +106,15 @@ void CHON::onCreate() {  // Called when graphics context is available
     particle[i].equilibrium[2] = 0;
     particle[i].particle.pose.setPos(particle[i].equilibrium);
     particle[i].graph.primitive(Mesh::LINE_STRIP);
-    particle[i].oscillator.freq(100 * (i));
-    particle[i].bell.freq(gam::scl::freq(majScale[i % (sizeof(majScale) / 8)]));
-    // particle[i + 1].bell.freq(majScale[i % 100]);
     particle[i].mass = mAll;
     particle[i].amSmooth.setTime(40.0f);
     particle[i].fmSmooth.setTime(40.0f);
+    particle[i].bell.freq(0);
+    particle[i].oscillator.freq(0);
   }
 
   navControl().useMouse(false);
+  navControl().disable();
 }
 
 void CHON::chonReset() {
@@ -117,12 +139,11 @@ void CHON::chonReset() {
     particle[i].equilibrium[2] = 0;
     particle[i].particle.pose.setPos(particle[i].equilibrium);
     particle[i].graph.primitive(Mesh::LINE_STRIP);
-    particle[i].oscillator.freq(100 * (i));
-    particle[i].bell.freq(gam::scl::freq(majScale[i % (sizeof(majScale) / 8)]));
-    // particle[i + 1].bell.freq(majScale[i % 100]);
     particle[i].mass = mAll;
     particle[i].amSmooth.setTime(40.0f);
     particle[i].fmSmooth.setTime(40.0f);
+    particle[i].bell.freq(0);
+    particle[i].oscillator.freq(0);
   }
   gui.reset(new BundleGUIManager());
   springs.clear();
@@ -262,10 +283,36 @@ void CHON::onDraw(Graphics &g) {  // Draw function
 
   if (drawGUI) {
     imguiBeginFrame();
+    ImGui::PushFont(bodyFont);
 
-    ParameterGUI::beginPanel("Physics");
+    ImGui::PushFont(titleFont);
+    ParameterGUI::beginPanel("Display", 0, 0, 350, 200, flags);
+    ImGui::PopFont();
+    ImGui::PushFont(bodyFont);
+    ImGui::Text("Graph");
+    ParameterGUI::drawParameterBool(&DrawGraph);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(35);
+    ParameterGUI::drawMenu(&graphAxis);
+    ParameterGUI::drawParameter(&graphSpread);
+    ParameterGUI::drawParameter(&graphSpeed);
+    ImGui::Text("Particle System");
+    ParameterGUI::drawParameterBool(&drawParticles);
+    ParameterGUI::drawParameterBool(&drawBoundaries);
+    ImGui::Text("Framerate %.3f", ImGui::GetIO().Framerate);
+    ImGui::PopFont();
+    ParameterGUI::endPanel();
+
+    ImGui::PushFont(titleFont);
+    ParameterGUI::beginPanel("Physics", 0, 200, 350, 300, flags);
+    ImGui::PopFont();
+    ImGui::PushFont(bodyFont);
     ImGui::Text("Particle Count");
-    ImGui::DragInt("x", &xParticles, 1.0f, 1, 100);
+    ImGui::InputInt("x", &xParticles);
+    if (xParticles > 100)
+      xParticles = 100;
+    else if (xParticles < 1)
+      xParticles = 1;
     // ImGui::SameLine();
     // ImGui::DragInt("y", &yParticles, 1.0f, 1, 100);
     ImGui::Checkbox("2D", &twoDimensions);
@@ -279,45 +326,45 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ImGui::SameLine();
     ParameterGUI::drawParameterBool(&zFree);
     ParameterGUI::drawParameterBool(&pause);
+    ImGui::PopFont();
     ParameterGUI::endPanel();
 
-    ParameterGUI::beginPanel("Synthesis");
+    ImGui::PushFont(titleFont);
+    ParameterGUI::beginPanel("Synthesis", 0, 500, 350, 275, flags);
+    ImGui::PopFont();
+    ImGui::PushFont(bodyFont);
     ParameterGUI::drawParameterBool(&bellSynthOn);
-    ImGui::SetNextItemWidth(35);
-    ImGui::SameLine();
-    ParameterGUI::drawMenu(&bellAxis);
-    ParameterGUI::drawParameter(&bellVolume);
+    if (bellSynthOn) {
+      ImGui::SetNextItemWidth(35);
+      ImGui::SameLine();
+      ParameterGUI::drawMenu(&bellAxis);
+      ParameterGUI::drawMenu(&bellScale);
+      ParameterGUI::drawParameter(&bellRoot);
+      ParameterGUI::drawParameter(&bellVolume);
+    }
     ParameterGUI::drawParameterBool(&AdditiveSynthOn);
-    ParameterGUI::drawParameter(&additiveVolume);
-    ParameterGUI::drawParameter(&fundamental);
-    ParameterGUI::drawParameterBool(&fm);
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(35);
-    ParameterGUI::drawMenu(&fmAxis);
-    ParameterGUI::drawParameter(&fmFreqMultiplier);
-    ParameterGUI::drawParameter(&fmWidth);
-    ParameterGUI::drawParameterBool(&am);
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(35);
-    ParameterGUI::drawMenu(&amAxis);
+    if (AdditiveSynthOn) {
+      ParameterGUI::drawParameter(&additiveVolume);
+      ParameterGUI::drawParameter(&additiveRoot);
+      ParameterGUI::drawParameterBool(&fm);
+      ImGui::SameLine();
+      ImGui::SetNextItemWidth(35);
+      ParameterGUI::drawMenu(&fmAxis);
+      ParameterGUI::drawParameter(&fmFreqMultiplier);
+      ParameterGUI::drawParameter(&fmWidth);
+      ParameterGUI::drawParameterBool(&am);
+      ImGui::SameLine();
+      ImGui::SetNextItemWidth(35);
+      ParameterGUI::drawMenu(&amAxis);
+    }
     ParameterGUI::drawParameterBool(&reverbOn);
+    ImGui::PopFont();
     ParameterGUI::endPanel();
 
-    ParameterGUI::beginPanel("Display");
-    ImGui::Text("Graph");
-    ParameterGUI::drawParameterBool(&DrawGraph);
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(35);
-    ParameterGUI::drawMenu(&graphAxis);
-    ParameterGUI::drawParameter(&graphSpread);
-    ParameterGUI::drawParameter(&graphSpeed);
-    ImGui::Text("Particle System");
-    ParameterGUI::drawParameterBool(&drawParticles);
-    ParameterGUI::drawParameterBool(&drawBoundaries);
-    ImGui::Text("Framerate %.3f", ImGui::GetIO().Framerate);
-    ParameterGUI::endPanel();
-
-    ParameterGUI::beginPanel("OSC");
+    ImGui::PushFont(titleFont);
+    ParameterGUI::beginPanel("OSC", 0, 775, 350, 125, flags);
+    ImGui::PopFont();
+    ImGui::PushFont(bodyFont);
     ParameterGUI::drawParameterBool(&oscOn);
     ParameterGUI::drawParameterBool(&oscX);
     ImGui::SameLine();
@@ -328,6 +375,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
                          ImGuiInputTextFlags_EnterReturnsTrue))
       resetOSC();
     if (ImGui::InputInt("Port", &port, ImGuiInputTextFlags_EnterReturnsTrue)) resetOSC();
+    ImGui::PopFont();
     ParameterGUI::endPanel();
 
     imguiEndFrame();
@@ -344,15 +392,15 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
       resetLock.unlock();
       if (AdditiveSynthOn) {
         for (int i = 1; i <= nX; i++) {  // add all oscillator samples to be sent to output
-          if (i * fundamental < 20000) {
+          if (i * additiveRoot < 20000) {
             if (fm) {
-              particle[i].FM.freq((i + 3) * fundamental * fmFreqMultiplier);
+              particle[i].FM.freq(i * additiveRoot * fmFreqMultiplier);
               particle[i].fmSmooth.process();
               particle[i].oscillator.freq(
-                (i * fundamental) + (particle[i].FM() * particle[i].fmSmooth.getCurrentValue() *
-                                     fmWidth * 1000));  // set freq
+                (i * additiveRoot) + (particle[i].FM() * particle[i].fmSmooth.getCurrentValue() *
+                                      fmWidth * 1000));  // set freq
             } else {
-              particle[i].oscillator.freq((i + 3) * fundamental);  // set freq
+              particle[i].oscillator.freq(i * additiveRoot);  // set freq
             }
             double sampleToAdd = particle[i].oscillator() * additiveVolume;  // scale
             sampleToAdd = sampleToAdd / (double(i) + 1.0);                   // scale for harmonics
@@ -370,11 +418,14 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
       if (bellSynthOn) {
         for (int i = 1; i <= nX; i++) {
           if (particle[i].zeroTrigger[bellAxis]) {
+            if ((scale->at(i % (scale->size())) * bellRoot) < 20000)
+              particle[i].bell.freq(scale->at(i % (scale->size())) * bellRoot);
+            else
+              particle[i].bell.freq(0);
             particle[i].bellEnv = 1;
           }
           if (particle[i].bellEnv > 0) particle[i].bellEnv -= 0.00005;
-          float env = particle[i].getBellEnv();
-          s += particle[i].bell() * 0.1 * bellVolume * env;
+          s += particle[i].bell() * 0.2 * bellVolume * particle[i].getBellEnv();
           particle[i].zeroTrigger[bellAxis] = 0;
         }
       }
@@ -456,9 +507,15 @@ bool CHON::onKeyDown(Keyboard const &k) {
       break;
     case 'g':
       drawGUI = 1 - drawGUI;
+      if (drawGUI) {
+        nav().nudge(-5, 0, -20);
+      }
+      if (!drawGUI) {
+        nav().nudge(5, 0, 20);
+      }
       break;
     case 'r':
-      nav().home();
+      // nav().home();N
       break;
     default:
       break;

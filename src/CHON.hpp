@@ -1,3 +1,4 @@
+#include "./Roboto-Medium.cpp"
 #include "./calculations.h"
 #include "Gamma/Filter.h"
 #include "Gamma/Noise.h"
@@ -10,7 +11,6 @@
 #include "al/ui/al_ControlGUI.hpp"
 #include "al/ui/al_Parameter.hpp"
 #include "al/ui/al_Pickable.hpp"
-
 using namespace al;
 
 class CHON : public App {
@@ -67,8 +67,8 @@ class CHON : public App {
   Mesh mesh;           // mesh for drawing particles
   int nX = 4;          // number of particles on x axis
   int xParticles = 4;  // Parameter for x particles count
-  int nY = 4;          // number of particles on y axis
-  int yParticles = 4;  // Parameter for y particles count
+  int nY = 1;          // number of particles on y axis
+  int yParticles = 1;  // Parameter for y particles count
   bool twoDimensions = false;
   std::vector<Spring *> springs;
   std::unique_ptr<BundleGUIManager> gui;
@@ -102,7 +102,10 @@ class CHON : public App {
   ParameterBool AdditiveSynthOn{"Additive Synth On", "Synthesis", 0};  // Additive Synth toggle
   ParameterBool bellSynthOn{"Bell Synth On", "Synthesis", 0};          // Additive Synth toggle
   ParameterMenu bellAxis{"Bell Axis"};
-  Parameter bellVolume{"Bell Volume", "Synthesis", 0.5f, "", 0.0f, 1.0f};  // Volume of bell synth
+  ParameterMenu bellScale{"Bell Tuning"};                                   // Tuning of Bell synth
+  Parameter bellRoot{"Root##bell", "Synthesis", 60.0f, "", 1.0f, 1000.0f};  // Root of bell tuning
+  Parameter bellVolume{"Bell Volume", "Synthesis", 0.5f, "", 0.0f, 1.0f};   // Volume of bell synth
+
   Parameter additiveVolume{
     "Additive Volume", "Synthesis", 0.5f, "", 0.0f, 1.0f};  // Volume of bell synth
   ParameterBool reverbOn{"Reverb On", "Synthesis", 1};      // Reverb
@@ -113,18 +116,48 @@ class CHON : public App {
   ParameterMenu fmAxis{"FM Axis"};
   ParameterBool am{"AM", "Synthesis", 0};  // AM toggle
   ParameterMenu amAxis{"AM Axis"};
-  Parameter fmWidth{"FM Width", "Synthesis", 2.0f, "", 0.1f, 5.0f};             // FM Width
-  Parameter fundamental{"Fundamental", "Synthesis", 60.0f, "", 1.0f, 2000.0f};  // Fundamental
+  Parameter fmWidth{"FM Width", "Synthesis", 2.0f, "", 0.1f, 5.0f};  // FM Width
+  // ParameterMenu bellScale{"Bell Tuning"};                            // Tuning of Bell synth
+  Parameter additiveRoot{"Root##additive", "Synthesis", 60.0f, "", 1.0f,
+                         1000.0f};  // root of additive synth
 
-  const char *pentScale[25] = {"c3", "d3", "f3", "g3", "a3", "c4", "d4", "f4", "g4",
-                               "a4", "c5", "d5", "f5", "g5", "a5", "c6", "d6", "f6",
-                               "g6", "a6", "c7", "d7", "f7", "g7", "a7"};
-  const char *majScale[35] = {"c3", "d3", "e3", "f3", "g3", "a3", "b3", "c4", "d4",
-                              "e4", "f4", "g4", "a4", "b4", "c5", "d5", "e5", "f5",
-                              "g5", "a5", "b5", "c6", "d6", "e6", "f6", "g6", "a6",
-                              "b6", "c7", "d7", "e7", "f7", "g7", "a7", "b7"};
-  int OTSeries[100];
-  float majIntervals[7] = {1, 9.0 / 8, 5.0 / 4, 4.0 / 3, 3.0 / 2, 5.0 / 3, 15.0 / 8};
+  std::vector<float> majScale{1.000000,  1.125000,  1.250000,  1.333333,  1.500000,  1.666667,
+                              1.875000,  2.000000,  2.250000,  2.500000,  2.666667,  3.000000,
+                              3.333333,  3.750000,  4.000000,  4.500000,  5.000000,  5.333333,
+                              6.000000,  6.666667,  7.500000,  8.000000,  9.000000,  10.000000,
+                              10.666667, 12.000000, 13.333333, 15.000000, 16.000000, 18.000000,
+                              20.000000, 21.333333, 24.000000, 26.666667, 30.000000, 32.000000};
+  std::vector<float> pentScale{1.000000,  1.125000,  1.250000,  1.500000,  1.666667,  2.000000,
+                               2.250000,  2.500000,  3.000000,  3.333333,  4.000000,  4.500000,
+                               5.000000,  6.000000,  6.666667,  8.000000,  9.000000,  10.000000,
+                               12.000000, 13.333333, 16.000000, 18.000000, 20.000000, 24.000000,
+                               26.666667, 32.000000};
+  std::vector<float> chromScale{
+    1.000000,  1.066667,  1.125000,  1.285714,  1.250000,  1.333333,  1.406250,  1.500000,
+    1.600000,  1.666667,  1.750000,  1.875000,  2.000000,  2.133333,  2.250000,  2.571429,
+    2.500000,  2.666667,  2.812500,  3.000000,  3.200000,  3.333333,  3.500000,  3.750000,
+    4.000000,  4.266667,  4.500000,  5.142857,  5.000000,  5.333333,  5.625000,  6.000000,
+    6.400000,  6.666667,  7.000000,  7.500000,  8.000000,  8.533333,  9.000000,  10.285714,
+    10.000000, 10.666667, 11.250000, 12.000000, 12.800000, 13.333333, 14.000000, 15.000000,
+    16.000000, 17.066667, 18.000000, 20.571429, 20.000000, 21.333333, 22.500000, 24.000000,
+    25.600000, 26.666667, 28.000000, 30.000000, 32.000000};
+
+  std::vector<float> otSeries{
+    1.000000,  2.000000,  3.000000,  4.000000,  5.000000,  6.000000,  7.000000,  8.000000,
+    9.000000,  10.000000, 11.000000, 12.000000, 13.000000, 14.000000, 15.000000, 16.000000,
+    17.000000, 18.000000, 19.000000, 20.000000, 21.000000, 22.000000, 23.000000, 24.000000,
+    25.000000, 26.000000, 27.000000, 28.000000, 29.000000, 30.000000, 31.000000, 32.000000,
+    33.000000, 34.000000, 35.000000, 36.000000, 37.000000, 38.000000, 39.000000, 40.000000,
+    41.000000, 42.000000, 43.000000, 44.000000, 45.000000, 46.000000, 47.000000, 48.000000,
+    49.000000, 50.000000, 51.000000, 52.000000, 53.000000, 54.000000, 55.000000, 56.000000,
+    57.000000, 58.000000, 59.000000, 60.000000, 61.000000, 62.000000, 63.000000, 64.000000};
+  std::vector<float> bpScale{
+    1.000000,  1.080000,  1.190476,  1.285714,  1.400000,  1.530612,  1.666667,  1.800000,
+    1.960000,  2.142857,  2.333333,  2.520000,  2.777778,  3.000000,  3.240000,  3.571429,
+    3.857143,  4.200000,  4.591837,  5.000000,  5.400000,  5.880000,  6.428571,  7.000000,
+    7.560000,  8.333333,  9.000000,  9.720000,  10.714286, 11.571429, 12.600000, 13.775510,
+    15.000000, 16.200000, 17.640000, 19.285714, 21.000000, 22.680000, 25.000000, 27.000000};
+  std::vector<float> *scale = &pentScale;
 
   int port = 16447;             // osc port
   char addr[10] = "127.0.0.1";  // ip address
@@ -136,6 +169,12 @@ class CHON : public App {
 
   void resetOSC() {
     client.open(port, addr);
-    std::cout << "got here" << std::endl;
+    std::cout << "New OSC port Selected: \n" + port << std::endl;
+    std::cout << addr << std::endl;
   }
+
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
+                           ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+  ImFont *bodyFont;
+  ImFont *titleFont;
 };
