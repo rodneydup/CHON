@@ -35,7 +35,7 @@ void CHON::onInit() {  // Called on app start
 
   kX.resize(nX + 1);
   kY.resize(nY + 1);
-  springLength = 50.0f / (nX + 1);
+  springLength = 1.0f / (nX + 1);
 
   reverb.bandwidth(0.9);  // Low-pass amount on input, in [0,1]
   reverb.damping(0.1);    // High-frequency damping, in [0,1]
@@ -44,8 +44,8 @@ void CHON::onInit() {  // Called on app start
   client.open(port, addr);
   texBlur.filter(Texture::LINEAR);
 
-  nav().pullBack(60);
-  nav().pos(-5, 7, 20);
+  nav().pos(0, 0, 0);
+  nav().pullBack(1.5);
   nav().setHome();
 
   xFree.registerChangeCallback([&](bool x) {
@@ -131,14 +131,32 @@ void CHON::onCreate() {  // Called when graphics context is available
     }
 
   navControl().useMouse(false);
-  navControl().disable();
-  // al::Vec3d turn = {-0.9, 0.8, -0.9};
-  // nav().turn(turn);
+  // navControl().disable();
 }
 
 void CHON::chonReset() {
   std::cout << "Reset Particles" << std::endl;
   resetLock.lock();
+  std::cout << yParticles << std::endl;
+  if (nY == 1 && yParticles > 1) {
+    nav().home();
+    nav().pullBack(2 + pow(0.002 * (1900 - width()), 2));
+    nav().turnF(-0.5);
+    nav().faceToward(Vec3d{1, 1, -1});
+  } else if (yParticles == 1) {
+    nav().home();
+    if (!drawGUI) {
+      nav().pos(0, 0, 0);
+      nav().pullBack(1.2 + pow(0.002 * (1900 - w), 2));
+    }
+    if (drawGUI) {
+      nav().pos(-0.5 * (500 / w), 0, 0);
+      nav().pullBack(1.5 + pow(0.002 * (1900 - w), 2));
+    }
+  } else if (nY > 1) {
+    nav().pullBack(2 + pow(0.002 * (1900 - width()), 2));
+    nav().faceToward(Vec3d{1, 1, -1});
+  }
 
   nX = xParticles;
   nY = yParticles;
@@ -153,7 +171,7 @@ void CHON::chonReset() {
   kX.resize(nX + 1);
   kY.resize(nY + 1);
 
-  springLength = 50.0f / (std::max(nX, nY) + 1);
+  springLength = 1.0f / (std::max(nX, nY) + 1);
 
   mesh.reset();
   addIcosphere(mesh, springLength / 5, 4);
@@ -190,6 +208,7 @@ void CHON::chonReset() {
     // Register its parameter bundle with the ControlGUI
     *ySpringGUI << newSpring->bundle;
   }
+
   resetLock.unlock();
 }
 
@@ -199,8 +218,31 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
 
   if (nY != yParticles) chonReset();
 
-  float w = width();
-  float h = height();
+  if (w != width()) {
+    if (nY > 1) {
+      if (!drawGUI) {
+        nav().pos(0, 0, 0);
+        nav().pullBack(2 + pow(0.002 * (1900 - width()), 2));
+      }
+      if (drawGUI) {
+        nav().pos(-0.5 * (500 / width()), 0, 0);
+        nav().pullBack(2.5 + pow(0.002 * (1900 - width()), 2));
+      }
+    } else {
+      if (!drawGUI) {
+        nav().pos(0, 0, 0);
+        nav().pullBack(1.2 + pow(0.002 * (1900 - width()), 2));
+      }
+      if (drawGUI) {
+        nav().pos(-0.5 * (500 / width()), 0, 0);
+        nav().pullBack(1.5 + pow(0.002 * (1900 - width()), 2));
+      }
+    }
+  }
+
+  w = width();
+  h = height();
+  // std::cout << w << std::endl;
 
   for (int i = 0; i < xSprings.size(); i++) {
     kX[i] = xSprings[i]->k;
@@ -300,6 +342,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
   // g.tint(0.9);
   // g.quadViewport(texBlur, -1, -1, 2, 2);
   // g.tint(1);
+
   g.depthTesting(true);
   g.lighting(true);
   g.color(0.5, 0.5, 0.5);
@@ -351,7 +394,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ImGui::PushFont(bodyFont);
 
     ImGui::PushFont(titleFont);
-    ParameterGUI::beginPanel("Display", 0, 0, 350, 200, flags);
+    ParameterGUI::beginPanel("Display", 0, 0, 350, 250, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
     ImGui::Text("Graph");
@@ -365,11 +408,12 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::drawParameterBool(&drawParticles);
     ParameterGUI::drawParameterBool(&drawBoundaries);
     ImGui::Text("Framerate %.3f", ImGui::GetIO().Framerate);
+    ImGui::Text("%.2f", nav().z());
     ImGui::PopFont();
     ParameterGUI::endPanel();
 
     ImGui::PushFont(titleFont);
-    ParameterGUI::beginPanel("Physics", 0, 200, 350, 300, flags);
+    ParameterGUI::beginPanel("Physics", 0, 250, 350, 300, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
     ImGui::Text("Particle Count");
@@ -386,9 +430,9 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     else if (yParticles < 1)
       yParticles = 1;
     ImGui::PopItemWidth();
-    ImGui::PushItemWidth(150);
+    ImGui::PushItemWidth(200);
     xSpringGUI->drawBundleGUI();
-    ySpringGUI->drawBundleGUI();
+    if (nY > 1) ySpringGUI->drawBundleGUI();
     ImGui::PopItemWidth();
     ParameterGUI::drawParameter(&mAll);
     ParameterGUI::drawParameter(&b);
@@ -403,7 +447,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::endPanel();
 
     ImGui::PushFont(titleFont);
-    ParameterGUI::beginPanel("Synthesis", 0, 500, 350, 275, flags);
+    ParameterGUI::beginPanel("Synthesis", 0, 550, 350, 275, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
     ParameterGUI::drawParameterBool(&bellSynthOn);
@@ -435,7 +479,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::endPanel();
 
     ImGui::PushFont(titleFont);
-    ParameterGUI::beginPanel("OSC", 0, 775, 350, 125, flags);
+    ParameterGUI::beginPanel("OSC", 0, 825, 350, 150, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
     ParameterGUI::drawParameterBool(&oscOn);
@@ -587,11 +631,24 @@ bool CHON::onKeyDown(Keyboard const &k) {
       break;
     case 'g':
       drawGUI = 1 - drawGUI;
-      if (drawGUI) {
-        nav().nudge(-5, 0, -20);
-      }
-      if (!drawGUI) {
-        nav().nudge(5, 0, 20);
+      if (nY > 1) {
+        if (!drawGUI) {
+          nav().pos(0, 0, 0);
+          nav().pullBack(1.2 + pow(0.002 * (1900 - w), 2));
+        }
+        if (drawGUI) {
+          nav().pos(-0.5 * (500 / w), 0, 0);
+          nav().pullBack(1.5 + pow(0.002 * (1900 - w), 2));
+        }
+      } else {
+        if (!drawGUI) {
+          nav().pos(0, 0, 0);
+          nav().pullBack(1.2 + pow(0.002 * (1900 - w), 2));
+        }
+        if (drawGUI) {
+          nav().pos(-0.5 * (500 / w), 0, 0);
+          nav().pullBack(1.5 + pow(0.002 * (1900 - w), 2));
+        }
       }
       break;
     case 'r':

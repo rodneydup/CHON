@@ -83,6 +83,8 @@ class CHON : public App {
   int amCounter;                // AM incrementor
   int picked = -1;              // variable keeping track of which particle is selected
   std::mutex resetLock;
+  float w = 2;
+  float h = 2;
 
   Reverb<float> reverb;
   gam::NoiseWhite<> tick;
