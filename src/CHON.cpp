@@ -62,7 +62,7 @@ void CHON::onInit() {  // Called on app start
     if (!y) {
       for (int i = 1; i <= nX; i++) {
         for (int j = 1; j <= nY; j++) {
-          particle[i][j].x(particle[i][j].equilibrium[1]);
+          particle[i][j].y(particle[i][j].equilibrium[1]);
           particle[i][j].velocity[1] = 0;
         }
       }
@@ -72,7 +72,7 @@ void CHON::onInit() {  // Called on app start
     if (!z) {
       for (int i = 1; i <= nX; i++) {
         for (int j = 1; j <= nY; j++) {
-          particle[i][j].x(particle[i][j].equilibrium[2]);
+          particle[i][j].z(particle[i][j].equilibrium[2]);
           particle[i][j].velocity[2] = 0;
         }
       }
@@ -138,6 +138,8 @@ void CHON::chonReset() {
   std::cout << "Reset Particles" << std::endl;
   resetLock.lock();
   std::cout << yParticles << std::endl;
+
+  // changing camera depending on if it's a 2D or 1D particle system
   if (nY == 1 && yParticles > 1) {
     nav().home();
     nav().pullBack(2 + pow(0.002 * (1900 - width()), 2));
@@ -158,16 +160,16 @@ void CHON::chonReset() {
     nav().faceToward(Vec3d{1, 1, -1});
   }
 
+  // synchronize these variables
   nX = xParticles;
   nY = yParticles;
 
+  // reset these arrays
   particle.clear();
   kX.clear();
   kY.clear();
-
   particle.resize(nX + 2);
   for (int y = 0; y <= nX + 1; y++) particle[y].resize(nY + 2);
-
   kX.resize(nX + 1);
   kY.resize(nY + 1);
 
@@ -218,6 +220,7 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
 
   if (nY != yParticles) chonReset();
 
+  // Stuff to handle the camera when window size changes
   if (w != width()) {
     if (nY > 1) {
       if (!drawGUI) {
@@ -242,7 +245,6 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
 
   w = width();
   h = height();
-  // std::cout << w << std::endl;
 
   for (int i = 0; i < xSprings.size(); i++) {
     kX[i] = xSprings[i]->k;
@@ -257,15 +259,12 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
   freedom[2] = zFree;
 
   if (!pause) {
-    updateVelocities2D(particle, springLength, freedom, kX, kY, mAll, b, 60);
+    updateVelocities(particle, springLength, freedom, kX, kY, mAll, b, 60);
 
     for (int x = 1; x <= nX; x++)
       for (int y = 1; y <= nY; y++) {  // animate stuff
         if (((y - 1) * nX) + x == picked) {
           for (int j = 0; j < 3; j++) particle[x][y].velocity[j] = 0;
-          if (!xFree) particle[x][y].x(particle[x][y].equilibrium[0]);
-          if (!yFree) particle[x][y].y(particle[x][y].equilibrium[1]);
-          if (!zFree) particle[x][y].z(particle[x][y].equilibrium[2]);
         } else {  // add velocities
           particle[x][y].addVelocity();
         }
