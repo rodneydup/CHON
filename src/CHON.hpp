@@ -181,7 +181,8 @@ class CHON : public App {
   }
 
   ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
-                           ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+                           ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings |
+                           ImGuiWindowFlags_AlwaysAutoResize;
   ImFont *bodyFont;
   ImFont *titleFont;
 };

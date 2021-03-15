@@ -1,8 +1,6 @@
 // To Do:
 // - Allow more variables to be sent by OSC (velocity, potential energy)
 // - add presets saving and loading
-// - Work on GUI
-// - Make the viewport smarter depending on window size and 2d vs 1d
 
 #include "CHON.hpp"
 
@@ -135,9 +133,8 @@ void CHON::onCreate() {  // Called when graphics context is available
 }
 
 void CHON::chonReset() {
-  std::cout << "Reset Particles" << std::endl;
+  std::cout << "Reset Particle network to" << xParticles << "by" << yParticles << std::endl;
   resetLock.lock();
-  std::cout << yParticles << std::endl;
 
   // changing camera depending on if it's a 2D or 1D particle system
   if (nY == 1 && yParticles > 1) {
@@ -390,10 +387,9 @@ void CHON::onDraw(Graphics &g) {  // Draw function
 
   if (drawGUI) {
     imguiBeginFrame();
-    ImGui::PushFont(bodyFont);
-
+    int yposition = 0;
     ImGui::PushFont(titleFont);
-    ParameterGUI::beginPanel("Display", 0, 0, 350, 250, flags);
+    ParameterGUI::beginPanel("Display", 0, yposition, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
     ImGui::Text("Graph");
@@ -407,12 +403,12 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::drawParameterBool(&drawParticles);
     ParameterGUI::drawParameterBool(&drawBoundaries);
     ImGui::Text("Framerate %.3f", ImGui::GetIO().Framerate);
-    ImGui::Text("%.2f", nav().z());
     ImGui::PopFont();
+    yposition += ImGui::GetWindowHeight();
     ParameterGUI::endPanel();
 
     ImGui::PushFont(titleFont);
-    ParameterGUI::beginPanel("Physics", 0, 250, 350, 300, flags);
+    ParameterGUI::beginPanel("Physics", 0, yposition, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
     ImGui::Text("Particle Count");
@@ -443,10 +439,11 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::drawParameterBool(&zFree);
     ParameterGUI::drawParameterBool(&pause);
     ImGui::PopFont();
+    yposition += ImGui::GetWindowHeight();
     ParameterGUI::endPanel();
 
     ImGui::PushFont(titleFont);
-    ParameterGUI::beginPanel("Synthesis", 0, 550, 350, 275, flags);
+    ParameterGUI::beginPanel("Synthesis", 0, yposition, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
     ParameterGUI::drawParameterBool(&bellSynthOn);
@@ -475,10 +472,11 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     }
     ParameterGUI::drawParameterBool(&reverbOn);
     ImGui::PopFont();
+    yposition += ImGui::GetWindowHeight();
     ParameterGUI::endPanel();
 
     ImGui::PushFont(titleFont);
-    ParameterGUI::beginPanel("OSC", 0, 825, 350, 150, flags);
+    ParameterGUI::beginPanel("OSC", 0, yposition, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
     ParameterGUI::drawParameterBool(&oscOn);
@@ -492,6 +490,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
       resetOSC();
     if (ImGui::InputInt("Port", &port, ImGuiInputTextFlags_EnterReturnsTrue)) resetOSC();
     ImGui::PopFont();
+
     ParameterGUI::endPanel();
 
     imguiEndFrame();
