@@ -1,8 +1,8 @@
 // To Do:
-// - Add 2D back into the app
 // - Allow more variables to be sent by OSC (velocity, potential energy)
 // - add presets saving and loading
 // - Work on GUI
+// - Make the viewport smarter depending on window size and 2d vs 1d
 
 #include "CHON.hpp"
 
@@ -11,18 +11,30 @@
 void CHON::onInit() {  // Called on app start
   std::cout << "onInit()" << std::endl;
 
-  gui = std::make_unique<BundleGUIManager>();
+  xSpringGUI = std::make_unique<BundleGUIManager>();
+  ySpringGUI = std::make_unique<BundleGUIManager>();
 
   for (int i = 0; i <= nX; i++) {
     // Create element
-    auto *newSpring = new Spring;
-    springs.push_back(newSpring);
+    auto *newSpring = new Spring{"X Springs"};
+    xSprings.push_back(newSpring);
     // Register its parameter bundle with the ControlGUI
-    *gui << newSpring->bundle;
+    *xSpringGUI << newSpring->bundle;
+  }
+
+  for (int i = 0; i <= nY; i++) {
+    // Create element
+    auto *newSpring = new Spring{"Y Springs"};
+    ySprings.push_back(newSpring);
+    // Register its parameter bundle with the ControlGUI
+    *ySpringGUI << newSpring->bundle;
   }
 
   particle.resize(nX + 2);
-  k.resize(nX + 1);
+  for (int y = 0; y <= nX + 1; y++) particle[y].resize(nY + 2);
+
+  kX.resize(nX + 1);
+  kY.resize(nY + 1);
   springLength = 50.0f / (nX + 1);
 
   reverb.bandwidth(0.9);  // Low-pass amount on input, in [0,1]
@@ -31,30 +43,38 @@ void CHON::onInit() {  // Called on app start
   reverb.diffusion(0.72, 0.69, 0.707, 0.71);
   client.open(port, addr);
   texBlur.filter(Texture::LINEAR);
+
   nav().pullBack(60);
   nav().pos(-5, 7, 20);
   nav().setHome();
+
   xFree.registerChangeCallback([&](bool x) {
     if (!x) {
       for (int i = 1; i <= nX; i++) {
-        particle[i].x(particle[i].equilibrium[0]);
-        particle[i].velocity[0] = 0;
+        for (int j = 1; j <= nY; j++) {
+          particle[i][j].x(particle[i][j].equilibrium[0]);
+          particle[i][j].velocity[0] = 0;
+        }
       }
     }
   });
   yFree.registerChangeCallback([&](bool y) {
     if (!y) {
       for (int i = 1; i <= nX; i++) {
-        particle[i].y(particle[i].equilibrium[1]);
-        particle[i].velocity[1] = 0;
+        for (int j = 1; j <= nY; j++) {
+          particle[i][j].x(particle[i][j].equilibrium[1]);
+          particle[i][j].velocity[1] = 0;
+        }
       }
     }
   });
   zFree.registerChangeCallback([&](bool z) {
     if (!z) {
       for (int i = 1; i <= nX; i++) {
-        particle[i].z(particle[i].equilibrium[2]);
-        particle[i].velocity[2] = 0;
+        for (int j = 1; j <= nY; j++) {
+          particle[i][j].x(particle[i][j].equilibrium[2]);
+          particle[i][j].velocity[2] = 0;
+        }
       }
     }
   });
@@ -96,66 +116,80 @@ void CHON::onCreate() {  // Called when graphics context is available
                                                                   RobotoMedium_compressed_size, 16);
   titleFont = ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(
     &RobotoMedium_compressed_data, RobotoMedium_compressed_size, 20);
+
   addIcosphere(mesh, springLength / 5, 4);
   mesh.generateNormals();
-
-  for (int i = 0; i <= nX + 1; i++) {
-    particle[i].particle.set(mesh);
-    particle[i].equilibrium[0] = (i * springLength) - ((springLength * (nX + 1)) / 2);
-    particle[i].equilibrium[1] = 0;
-    particle[i].equilibrium[2] = 0;
-    particle[i].particle.pose.setPos(particle[i].equilibrium);
-    particle[i].graph.primitive(Mesh::LINE_STRIP);
-    particle[i].mass = mAll;
-    particle[i].amSmooth.setTime(40.0f);
-    particle[i].fmSmooth.setTime(40.0f);
-    particle[i].bell.freq(0);
-    particle[i].oscillator.freq(0);
-  }
+  for (int x = 0; x <= nX + 1; x++)
+    for (int y = 0; y <= nY + 1; y++) {
+      particle[x][y].particle.set(mesh);
+      particle[x][y].equilibrium[0] = (x * springLength) - ((springLength * (nX + 1)) / 2);
+      particle[x][y].equilibrium[1] = (y * springLength) - ((springLength * (nY + 1)) / 2);
+      particle[x][y].equilibrium[2] = 0;
+      particle[x][y].particle.pose.setPos(particle[x][y].equilibrium);
+      particle[x][y].graph.primitive(Mesh::LINE_STRIP);
+      particle[x][y].mass = mAll;
+    }
 
   navControl().useMouse(false);
   navControl().disable();
+  // al::Vec3d turn = {-0.9, 0.8, -0.9};
+  // nav().turn(turn);
 }
 
 void CHON::chonReset() {
+  std::cout << "Reset Particles" << std::endl;
   resetLock.lock();
 
   nX = xParticles;
+  nY = yParticles;
 
   particle.clear();
-  k.clear();
+  kX.clear();
+  kY.clear();
+
   particle.resize(nX + 2);
-  k.resize(nX + 1);
-  springLength = 50.0f / (nX + 1);
+  for (int y = 0; y <= nX + 1; y++) particle[y].resize(nY + 2);
+
+  kX.resize(nX + 1);
+  kY.resize(nY + 1);
+
+  springLength = 50.0f / (std::max(nX, nY) + 1);
 
   mesh.reset();
   addIcosphere(mesh, springLength / 5, 4);
   mesh.generateNormals();
 
-  for (int i = 0; i <= nX + 1; i++) {
-    particle[i].particle.set(mesh);
-    particle[i].equilibrium[0] = (i * springLength) - ((springLength * (nX + 1)) / 2);
-    particle[i].equilibrium[1] = 0;
-    particle[i].equilibrium[2] = 0;
-    particle[i].particle.pose.setPos(particle[i].equilibrium);
-    particle[i].graph.primitive(Mesh::LINE_STRIP);
-    particle[i].mass = mAll;
-    particle[i].amSmooth.setTime(40.0f);
-    particle[i].fmSmooth.setTime(40.0f);
-    particle[i].bell.freq(0);
-    particle[i].oscillator.freq(0);
-  }
-  gui.reset(new BundleGUIManager());
-  springs.clear();
+  for (int x = 0; x <= nX + 1; x++)
+    for (int y = 0; y <= nY + 1; y++) {
+      particle[x][y].particle.set(mesh);
+      particle[x][y].equilibrium[0] = (x * springLength) - ((springLength * (nX + 1)) / 2);
+      particle[x][y].equilibrium[1] = (y * springLength) - ((springLength * (nY + 1)) / 2);
+      particle[x][y].equilibrium[2] = 0;
+      particle[x][y].particle.pose.setPos(particle[x][y].equilibrium);
+      particle[x][y].graph.primitive(Mesh::LINE_STRIP);
+      particle[x][y].mass = mAll;
+    }
+
+  xSpringGUI.reset(new BundleGUIManager());
+  ySpringGUI.reset(new BundleGUIManager());
+
+  xSprings.clear();
+  ySprings.clear();
+
   for (int i = 0; i <= nX; i++) {
     // Create element
-    auto *newSpring = new Spring;
-    springs.push_back(newSpring);
+    auto *newSpring = new Spring{"X Springs"};
+    xSprings.push_back(newSpring);
     // Register its parameter bundle with the ControlGUI
-
-    *gui << newSpring->bundle;
+    *xSpringGUI << newSpring->bundle;
   }
-
+  for (int i = 0; i <= nY; i++) {
+    // Create element
+    auto *newSpring = new Spring{"Y Springs"};
+    ySprings.push_back(newSpring);
+    // Register its parameter bundle with the ControlGUI
+    *ySpringGUI << newSpring->bundle;
+  }
   resetLock.unlock();
 }
 
@@ -163,11 +197,17 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
 
   if (nX != xParticles) chonReset();
 
+  if (nY != yParticles) chonReset();
+
   float w = width();
   float h = height();
 
-  for (int i = 0; i < springs.size(); i++) {
-    k[i] = springs[i]->k;
+  for (int i = 0; i < xSprings.size(); i++) {
+    kX[i] = xSprings[i]->k;
+  }
+
+  for (int i = 0; i < ySprings.size(); i++) {
+    kY[i] = ySprings[i]->k;
   }
 
   freedom[0] = xFree;
@@ -175,66 +215,82 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
   freedom[2] = zFree;
 
   if (!pause) {
-    updateVelocities(particle, springLength, freedom, k, mAll, b, 60);
+    updateVelocities2D(particle, springLength, freedom, kX, kY, mAll, b, 60);
 
-    for (int i = 1; i <= nX; i++) {  // animate stuff
-      if (i == picked) {
-        for (int j = 0; j < 3; j++) particle[i].velocity[j] = 0;
-        if (!xFree) particle[i].x(particle[i].equilibrium[0]);
-        if (!yFree) particle[i].y(particle[i].equilibrium[1]);
-        if (!zFree) particle[i].z(particle[i].equilibrium[2]);
-      } else {  // add velocities
-        particle[i].addVelocity();
+    for (int x = 1; x <= nX; x++)
+      for (int y = 1; y <= nY; y++) {  // animate stuff
+        if (((y - 1) * nX) + x == picked) {
+          for (int j = 0; j < 3; j++) particle[x][y].velocity[j] = 0;
+          if (!xFree) particle[x][y].x(particle[x][y].equilibrium[0]);
+          if (!yFree) particle[x][y].y(particle[x][y].equilibrium[1]);
+          if (!zFree) particle[x][y].z(particle[x][y].equilibrium[2]);
+        } else {  // add velocities
+          particle[x][y].addVelocity();
+        }
+
+        particle[x][y].updateDisplacement();
+
+        if (DrawGraph) {
+          particle[x][y].graph.translate(-w / (60 * graphSpeed), 0,
+                                         0);  // move previous graph data left
+          if (particle[x][y].graph.vertices().size() > w)
+            particle[x][y].graph.vertices().erase(
+              particle[x][y].graph.vertices().begin());               // erase left hand graph data
+          float graphY = h * particle[x][y].displacement[graphAxis];  // calculate new phase value
+          if (graphAxis == 0)
+            graphY /= springLength * 2;  // scale for longitudinal waves
+          else
+            graphY /= 20;  // scale for transverse waves
+          graphY += (h * ((graphSpread * x / (nX + 1)) +
+                          ((0.75 - (graphSpread / 2)))));  // add offset for each graph
+          particle[x][y].graph.vertex(w, graphY, 0);       // update with new graph data on right
+        }
+
+        if (fm) {
+          if (nY > 1) {
+            if (fmAxis == 0)
+              particle[x][y].fmSmooth.setTarget(abs(particle[x][y].displacement[fmAxis]));
+            else
+              particle[x][y].fmSmooth.setTarget(abs(particle[x][y].displacement[fmAxis]));
+          } else {
+            if (fmAxis == 0)
+              particle[x][y].fmSmooth.setTarget(
+                abs(particle[x][y].displacement[fmAxis] / springLength));
+            else
+              particle[x][y].fmSmooth.setTarget(abs(particle[x][y].displacement[fmAxis] / 5));
+          }
+        }
+
+        if (am) {
+          if (amAxis == 0)
+            particle[x][y].amSmooth.setTarget(
+              abs((particle[x][y].displacement[amAxis] / springLength)));
+          else
+            particle[x][y].amSmooth.setTarget(abs(particle[x][y].displacement[amAxis] / 5));
+          if (particle[x][y].amSmooth.getTargetValue() > 1) particle[x][y].amSmooth.setTarget(1.0f);
+        }
+
+        for (int j = 0; j < 3; j++) {
+          if (signbit(particle[x][y].prevDisplacement[j]) !=
+                signbit(particle[x][y].displacement[j]) &&
+              abs(particle[x][y].prevDisplacement[j] - particle[x][y].displacement[j]) > 0.00001)
+            particle[x][y].zeroTrigger[j] = 1;
+        }
+
+        // OSC
+        if (oscOn) {
+          particle[x][y].updateDisplacement();
+          if (oscX)
+            client.send("/displacementX", ((y - 1) * nX) + x,
+                        float(particle[x][y].displacement[0] / springLength));
+          if (oscY)
+            client.send("/displacementY", ((y - 1) * nX) + x,
+                        float(particle[x][y].displacement[1]));
+          if (oscZ)
+            client.send("/displacementZ", ((y - 1) * nX) + x,
+                        float(particle[x][y].displacement[2]));
+        }
       }
-
-      particle[i].updateDisplacement();
-
-      if (DrawGraph) {
-        particle[i].graph.translate(-w / (60 * graphSpeed), 0,
-                                    0);  // move previous graph data left
-        if (particle[i].graph.vertices().size() > w)
-          particle[i].graph.vertices().erase(
-            particle[i].graph.vertices().begin());               // erase left hand graph data
-        float graphY = h * particle[i].displacement[graphAxis];  // calculate new phase value
-        if (graphAxis == 0)
-          graphY /= springLength * 2;  // scale for longitudinal waves
-        else
-          graphY /= 20;  // scale for transverse waves
-        graphY += (h * ((graphSpread * i / (nX + 1)) +
-                        ((0.75 - (graphSpread / 2)))));  // add offset for each graph
-        particle[i].graph.vertex(w, graphY, 0);          // update with new graph data on right
-      }
-
-      if (fm) {
-        if (fmAxis == 0)
-          particle[i].fmSmooth.setTarget(abs((particle[i].displacement[fmAxis] / springLength)));
-        else
-          particle[i].fmSmooth.setTarget(abs(particle[i].displacement[fmAxis] / 5));
-      }
-
-      if (am) {
-        if (amAxis == 0)
-          particle[i].amSmooth.setTarget(abs((particle[i].displacement[amAxis] / springLength)));
-        else
-          particle[i].amSmooth.setTarget(abs(particle[i].displacement[amAxis] / 5));
-        if (particle[i].amSmooth.getTargetValue() > 1) particle[i].amSmooth.setTarget(1.0f);
-      }
-
-      for (int j = 0; j < 3; j++) {
-        if (signbit(particle[i].prevDisplacement[j]) != signbit(particle[i].displacement[j]) &&
-            abs(particle[i].prevDisplacement[j] - particle[i].displacement[j]) > 0.00001)
-          particle[i].zeroTrigger[j] = 1;
-      }
-    }
-  }
-  for (int i = 1; i <= nX; i++) {
-    // OSC
-    if (oscOn) {
-      particle[i].updateDisplacement();
-      if (oscX) client.send("/displacementX", i, float(particle[i].displacement[0] / springLength));
-      if (oscY) client.send("/displacementY", i, float(particle[i].displacement[1]));
-      if (oscZ) client.send("/displacementZ", i, float(particle[i].displacement[2]));
-    }
   }
 }
 
@@ -251,19 +307,27 @@ void CHON::onDraw(Graphics &g) {  // Draw function
 
   if (drawBoundaries) {
     g.color(1);
-    particle[0].particle.drawMesh(g);
-    particle[nX + 1].particle.drawMesh(g);
+    if (nY > 1)
+      for (int x = 1; x <= nX; x++) {
+        particle[x][0].particle.drawMesh(g);
+        particle[x][nY + 1].particle.drawMesh(g);
+      }
+    for (int y = 1; y <= nY; y++) {
+      particle[0][y].particle.drawMesh(g);
+      particle[nX + 1][y].particle.drawMesh(g);
+    }
   }
 
   if (drawParticles) {
-    for (int i = 1; i <= nX; i++) {
-      g.color(HSV((float(i) / nX), 0.5, 1));
-      if (!xFree) particle[i].x(particle[i].equilibrium[0]);
-      if (!yFree) particle[i].y(particle[i].equilibrium[1]);
-      if (!zFree) particle[i].z(particle[i].equilibrium[2]);
-      particle[i].setPos(particle[i].x(), particle[i].y(), particle[i].z());
-      particle[i].particle.drawMesh(g);
-    }
+    for (int x = 1; x <= nX; x++)
+      for (int y = 1; y <= nY; y++) {
+        g.color(HSV((float(x * y) / (nX * nY)), 0.5, 1));
+        if (!xFree) particle[x][y].x(particle[x][y].equilibrium[0]);
+        if (!yFree) particle[x][y].y(particle[x][y].equilibrium[1]);
+        if (!zFree) particle[x][y].z(particle[x][y].equilibrium[2]);
+        particle[x][y].setPos(particle[x][y].x(), particle[x][y].y(), particle[x][y].z());
+        particle[x][y].particle.drawMesh(g);
+      }
     // texBlur.copyFrameBuffer();
   }
 
@@ -271,10 +335,11 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     g.pushCamera();
     g.camera(Viewpoint::ORTHO_FOR_2D);  // Ortho [0:width] x [0:height]
     g.lighting(false);
-    for (int i = 1; i <= nX; i++) {
-      g.color(HSV((float(i) / nX), 0.5, 1));
-      g.draw(particle[i].graph);
-    }
+    for (int x = 1; x <= nX; x++)
+      for (int y = 1; y <= nY; y++) {
+        g.color(HSV((float(x * y) / (nX * nY)), 0.5, 1));
+        g.draw(particle[x][y].graph);
+      }
     g.popCamera();
   }
 
@@ -308,15 +373,23 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
     ImGui::Text("Particle Count");
+    ImGui::PushItemWidth(100);
     ImGui::InputInt("x", &xParticles);
-    if (xParticles > 100)
-      xParticles = 100;
+    if (xParticles * yParticles > 100)
+      xParticles = int(100 / yParticles);
     else if (xParticles < 1)
       xParticles = 1;
-    // ImGui::SameLine();
-    // ImGui::DragInt("y", &yParticles, 1.0f, 1, 100);
-    ImGui::Checkbox("2D", &twoDimensions);
-    gui->drawBundleGUI();
+    ImGui::SameLine();
+    ImGui::InputInt("y", &yParticles);
+    if (xParticles * yParticles > 100)
+      yParticles = int(100 / xParticles);
+    else if (yParticles < 1)
+      yParticles = 1;
+    ImGui::PopItemWidth();
+    ImGui::PushItemWidth(150);
+    xSpringGUI->drawBundleGUI();
+    ySpringGUI->drawBundleGUI();
+    ImGui::PopItemWidth();
     ParameterGUI::drawParameter(&mAll);
     ParameterGUI::drawParameter(&b);
     ImGui::Text("Degrees of Freedom");
@@ -391,43 +464,46 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
     if (resetLock.try_lock()) {
       resetLock.unlock();
       if (AdditiveSynthOn) {
-        for (int i = 1; i <= nX; i++) {  // add all oscillator samples to be sent to output
-          if (i * additiveRoot < 20000) {
-            if (fm) {
-              particle[i].FM.freq(i * additiveRoot * fmFreqMultiplier);
-              particle[i].fmSmooth.process();
-              particle[i].oscillator.freq(
-                (i * additiveRoot) + (particle[i].FM() * particle[i].fmSmooth.getCurrentValue() *
-                                      fmWidth * 1000));  // set freq
-            } else {
-              particle[i].oscillator.freq(i * additiveRoot);  // set freq
+        for (int x = 1; x <= nX; x++)
+          for (int y = 1; y <= nY; y++) {  // add all oscillator samples to be sent to output
+            if (x * additiveRoot < 20000) {
+              if (fm) {
+                particle[x][y].FM.freq(x * y * additiveRoot * fmFreqMultiplier);
+                particle[x][y].fmSmooth.process();
+                particle[x][y].oscillator.freq(
+                  (x * y * additiveRoot) +
+                  (particle[x][y].FM() * particle[x][y].fmSmooth.getCurrentValue() * fmWidth *
+                   1000));  // set freq
+              } else {
+                particle[x][y].oscillator.freq(x * y * additiveRoot);  // set freq
+              }
+              double sampleToAdd = particle[x][y].oscillator() * additiveVolume;  // scale
+              sampleToAdd = sampleToAdd / ((x * y) + 1.0);  // scale for harmonics
+              if (am) {
+                particle[x][y].amSmooth.process();  // progress smoothvalue
+                sampleToAdd =
+                  sampleToAdd *
+                  particle[x][y].amSmooth.getCurrentValue();  // scale for amplitude modulation
+              }
+              s += sampleToAdd;
             }
-            double sampleToAdd = particle[i].oscillator() * additiveVolume;  // scale
-            sampleToAdd = sampleToAdd / (double(i) + 1.0);                   // scale for harmonics
-            if (am) {
-              particle[i].amSmooth.process();  // progress smoothvalue
-              sampleToAdd =
-                sampleToAdd *
-                particle[i].amSmooth.getCurrentValue();  // scale for amplitude modulation
-            }
-            s += sampleToAdd;
           }
-        }
       }
 
       if (bellSynthOn) {
-        for (int i = 1; i <= nX; i++) {
-          if (particle[i].zeroTrigger[bellAxis]) {
-            if ((scale->at(i % (scale->size())) * bellRoot) < 20000)
-              particle[i].bell.freq(scale->at(i % (scale->size())) * bellRoot);
-            else
-              particle[i].bell.freq(0);
-            particle[i].bellEnv = 1;
+        for (int x = 1; x <= nX; x++)
+          for (int y = 1; y <= nY; y++) {
+            if (particle[x][y].zeroTrigger[bellAxis]) {
+              if ((scale->at((x * y) % (scale->size())) * bellRoot) < 20000)
+                particle[x][y].bell.freq(scale->at((x * y) % (scale->size())) * bellRoot);
+              else
+                particle[x][y].bell.freq(0);
+              particle[x][y].bellEnv = 1;
+            }
+            if (particle[x][y].bellEnv > 0) particle[x][y].bellEnv -= 0.00005;
+            s += particle[x][y].bell() * 0.2 * bellVolume * particle[x][y].getBellEnv();
+            particle[x][y].zeroTrigger[bellAxis] = 0;
           }
-          if (particle[i].bellEnv > 0) particle[i].bellEnv -= 0.00005;
-          s += particle[i].bell() * 0.2 * bellVolume * particle[i].getBellEnv();
-          particle[i].zeroTrigger[bellAxis] = 0;
-        }
       }
     }
 
@@ -477,25 +553,29 @@ Rayd CHON::getPickRay(int screenX, int screenY) {
 bool CHON::onMouseMove(const Mouse &m) {
   // make a ray from mouse location
   Rayd r = getPickRay(m.x(), m.y());
-  for (int i = 1; i <= nX; i++) particle[i].particle.event(PickEvent(Point, r));
+  for (int x = 1; x <= nX; x++)
+    for (int y = 1; y <= nY; y++) particle[x][y].particle.event(PickEvent(Point, r));
   return true;
 }
 bool CHON::onMouseDown(const Mouse &m) {
   Rayd r = getPickRay(m.x(), m.y());
-  for (int i = 1; i <= nX; i++) {
-    particle[i].particle.event(PickEvent(Pick, r));
-    if (particle[i].particle.selected == 1) picked = i;
-  }
+  for (int x = 1; x <= nX; x++)
+    for (int y = 1; y <= nY; y++) {
+      particle[x][y].particle.event(PickEvent(Pick, r));
+      if (particle[x][y].particle.selected == 1) picked = ((y - 1) * nX) + x;
+    }
   return true;
 }
 bool CHON::onMouseDrag(const Mouse &m) {
   Rayd r = getPickRay(m.x(), m.y());
-  for (int i = 1; i <= nX; i++) particle[i].particle.event(PickEvent(Drag, r));
+  for (int x = 1; x <= nX; x++)
+    for (int y = 1; y <= nY; y++) particle[x][y].particle.event(PickEvent(Drag, r));
   return true;
 }
 bool CHON::onMouseUp(const Mouse &m) {
   Rayd r = getPickRay(m.x(), m.y());
-  for (int i = 1; i <= nX; i++) particle[i].particle.event(PickEvent(Unpick, r));
+  for (int x = 1; x <= nX; x++)
+    for (int y = 1; y <= nY; y++) particle[x][y].particle.event(PickEvent(Unpick, r));
   picked = -1;
   return true;
 }
@@ -515,7 +595,7 @@ bool CHON::onKeyDown(Keyboard const &k) {
       }
       break;
     case 'r':
-      // nav().home();N
+      // nav().home();
       break;
     default:
       break;

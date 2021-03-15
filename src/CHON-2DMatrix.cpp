@@ -1,4 +1,5 @@
 #include <array>
+
 #include "./calculations.h"
 #include "Gamma/Filter.h"
 #include "Gamma/Noise.h"
@@ -23,8 +24,7 @@ struct MyApp : public App {
   MyApp() {}
 
   Mesh mesh;
-  std::array<std::array<Particle, nY + 2>, nX + 2>
-    particle;       // create particles (plus 2 boundary particles)
+  std::vector<std::vector<Particle>> particle;  // create particles (plus 2 boundary particles)
   int picked = -1;  // variable keeping track of which particle is selected
   double springLength = 25.0f / (nX + 1);
   bool freedom[3] = {1, 0, 0};
@@ -79,6 +79,10 @@ struct MyApp : public App {
 
   void onInit() {  // Called on app start
     std::cout << "onInit()" << std::endl;
+
+    particle.resize(nX + 2);
+    for (int y = 0; y <= nX + 1; y++) particle[y].resize(nY + 2);
+
     reverb.bandwidth(0.9);  // Low-pass amount on input, in [0,1]
     reverb.damping(0.1);    // High-frequency damping, in [0,1]
     reverb.decay(0.15);     // Tail decay factor, in [0,1]

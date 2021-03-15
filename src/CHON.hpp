@@ -70,28 +70,33 @@ class CHON : public App {
   int nY = 1;          // number of particles on y axis
   int yParticles = 1;  // Parameter for y particles count
   bool twoDimensions = false;
-  std::vector<Spring *> springs;
-  std::unique_ptr<BundleGUIManager> gui;
+  std::vector<Spring *> xSprings;
+  std::vector<Spring *> ySprings;
 
-  std::vector<Particle> particle;  // create particles (plus 2 boundary particles)
-  std::vector<double> k;           // Spring Constants
-  double springLength;             // Spacing between particles
-  bool freedom[3] = {1, 0, 0};     // Degrees of freedom for particle movement
-  Texture texBlur;                 // blurring filter for graph
-  int amCounter;                   // AM incrementor
-  int picked = -1;                 // variable keeping track of which particle is selected
+  std::vector<std::vector<Particle>> particle;  // create particles (plus 2 boundary particles)
+  std::vector<double> kX;                       // Spring Constants for x direction
+  std::vector<double> kY;                       // Spring Constants for y direction
+
+  double springLength;          // Spacing between particles
+  bool freedom[3] = {1, 0, 0};  // Degrees of freedom for particle movement
+  Texture texBlur;              // blurring filter for graph
+  int amCounter;                // AM incrementor
+  int picked = -1;              // variable keeping track of which particle is selected
   std::mutex resetLock;
 
   Reverb<float> reverb;
   gam::NoiseWhite<> tick;
   bool drawGUI = 1;
 
+  std::unique_ptr<BundleGUIManager> xSpringGUI;
+  std::unique_ptr<BundleGUIManager> ySpringGUI;
   Parameter mAll{"Mass All", "physics", 1.0f, "", 1.0f, 100.0f};  // Master mass
   Parameter b{"Damping", "physics", 0.0f, "", 0.0f, 5.0f};        // damping
   ParameterBool xFree{"X axis", "Degrees of Freedom", 1};
   ParameterBool yFree{"Y axis", "Degrees of Freedom", 0};
   ParameterBool zFree{"Z axis", "Degrees of Freedom", 0};
-  ParameterBool pause{"Pause (press p)", "physics", 0};           // Pause Simulation
+  ParameterBool pause{"Pause (press p)", "physics", 0};  // Pause Simulation
+
   ParameterBool DrawGraph{"Draw Graph", "draw", 1};               // Toggle Drawing Graph
   Parameter graphSpread{"Spread", "draw", 0.0f, "", 0.0f, 1.0f};  // Graph spread
   Parameter graphSpeed{"Speed", "draw", 10.0f, "", 1.0f, 30.0f};  // Graph draw speed

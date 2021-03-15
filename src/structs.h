@@ -50,9 +50,12 @@ class SmoothValue {
 };
 
 struct Spring {
+  Spring(const char* name) {
+    bundle.name(name);
+    bundle << k;
+  }
   al::Parameter k{"Stiffness", "physics", 1.0f, "", 1.0f, 100.0f};
-  al::ParameterBundle bundle{"springs"};
-  Spring() { bundle << k; }
+  al::ParameterBundle bundle;
 };
 
 struct Particle {
@@ -77,6 +80,10 @@ struct Particle {
   Particle() {
     Lop.type(gam::FilterType(gam::LOW_PASS));
     Lop.set(400, 1);
+    oscillator.freq(0);
+    bell.freq(0);
+    amSmooth.setTime(40.0f);
+    fmSmooth.setTime(40.0f);
   }
 
   void setPos(double x, double y, double z) { particle.pose.setPos(al::Vec3d(x, y, z)); }
