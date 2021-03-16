@@ -182,27 +182,6 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
 
   if (nY != yParticles) chonReset();
 
-  // Stuff to handle the camera when window size changes
-  if (w != width()) {
-    if (nY > 1) {
-      if (!drawGUI) {
-        nav().pos(0, 0, 0);
-        nav().pullBack(2 + pow(0.002 * (1900 - w), 2));
-      } else {
-        nav().pos(-0.5 * (500 / w), 0, 0);
-        nav().pullBack(2.5 + pow(0.002 * (1900 - w), 2));
-      }
-    } else {
-      if (!drawGUI) {
-        nav().pos(0, 0, 0);
-        nav().pullBack(1.2 + pow(0.002 * (1900 - w), 2));
-      } else {
-        nav().pos(-0.5 * (500 / w), 0, 0);
-        nav().pullBack(1.5 + pow(0.002 * (1900 - w), 2));
-      }
-    }
-  }
-
   w = width();
   h = height();
 
@@ -525,6 +504,22 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
   }
 }
 
+void CHON::onResize(int width, int height) {
+  if (!drawGUI) {
+    nav().pos(0, 0, 0);
+    if (nY > 1)
+      nav().pullBack(2 + pow(0.002 * (1900 - width), 2));
+    else
+      nav().pullBack(1.2 + pow(0.002 * (1900 - width), 2));
+  } else {
+    nav().pos(-0.5 * (500 / float(width)), 0, 0);
+    if (nY > 1)
+      nav().pullBack(2.5 + pow(0.002 * (1900 - width), 2));
+    else
+      nav().pullBack(1.5 + pow(0.002 * (1900 - width), 2));
+  }
+}
+
 void onMessage(osc::Message &m) {  // OSC message callback
   m.print();
 }
@@ -592,25 +587,8 @@ bool CHON::onKeyDown(Keyboard const &k) {
       break;
     case 'g':
       drawGUI = 1 - drawGUI;
-      if (nY > 1) {
-        if (!drawGUI) {
-          nav().pos(0, 0, 0);
-          nav().pullBack(1.2 + pow(0.002 * (1900 - w), 2));
-        }
-        if (drawGUI) {
-          nav().pos(-0.5 * (500 / w), 0, 0);
-          nav().pullBack(1.5 + pow(0.002 * (1900 - w), 2));
-        }
-      } else {
-        if (!drawGUI) {
-          nav().pos(0, 0, 0);
-          nav().pullBack(1.2 + pow(0.002 * (1900 - w), 2));
-        }
-        if (drawGUI) {
-          nav().pos(-0.5 * (500 / w), 0, 0);
-          nav().pullBack(1.5 + pow(0.002 * (1900 - w), 2));
-        }
-      }
+      onResize(width(), height());
+
       break;
     case 'r':
       srand(std::time(0));

@@ -37,6 +37,8 @@ class CHON : public App {
    */
   virtual void onDraw(al::Graphics &g) override;
 
+  virtual void onResize(int width, int height) override;
+
   virtual Vec3d unproject(Vec3d screenPos);
 
   virtual Rayd getPickRay(int screenX, int screenY);
