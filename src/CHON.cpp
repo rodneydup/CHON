@@ -9,32 +9,6 @@
 void CHON::onInit() {  // Called on app start
   std::cout << "onInit()" << std::endl;
 
-  xSpringGUI = std::make_unique<BundleGUIManager>();
-  ySpringGUI = std::make_unique<BundleGUIManager>();
-
-  for (int i = 0; i <= nX; i++) {
-    // Create element
-    auto *newSpring = new Spring{"X Springs"};
-    xSprings.push_back(newSpring);
-    // Register its parameter bundle with the ControlGUI
-    *xSpringGUI << newSpring->bundle;
-  }
-
-  for (int i = 0; i <= nY; i++) {
-    // Create element
-    auto *newSpring = new Spring{"Y Springs"};
-    ySprings.push_back(newSpring);
-    // Register its parameter bundle with the ControlGUI
-    *ySpringGUI << newSpring->bundle;
-  }
-
-  particle.resize(nX + 2);
-  for (int y = 0; y <= nX + 1; y++) particle[y].resize(nY + 2);
-
-  kX.resize(nX + 1);
-  kY.resize(nY + 1);
-  springLength = 1.0f / (nX + 1);
-
   reverb.bandwidth(0.9);  // Low-pass amount on input, in [0,1]
   reverb.damping(0.1);    // High-frequency damping, in [0,1]
   reverb.decay(0.15);     // Tail decay factor, in [0,1]
@@ -117,21 +91,10 @@ void CHON::onCreate() {  // Called when graphics context is available
   titleFont = ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(
     &RobotoMedium_compressed_data, RobotoMedium_compressed_size, 20);
 
-  addIcosphere(mesh, springLength / 5, 4);
-  mesh.generateNormals();
-  for (int x = 0; x <= nX + 1; x++)
-    for (int y = 0; y <= nY + 1; y++) {
-      particle[x][y].particle.set(mesh);
-      particle[x][y].equilibrium[0] = (x * springLength) - ((springLength * (nX + 1)) / 2);
-      particle[x][y].equilibrium[1] = (y * springLength) - ((springLength * (nY + 1)) / 2);
-      particle[x][y].equilibrium[2] = 0;
-      particle[x][y].particle.pose.setPos(particle[x][y].equilibrium);
-      particle[x][y].graph.primitive(Mesh::LINE_STRIP);
-      particle[x][y].mass = mAll;
-    }
+  chonReset();
 
   navControl().useMouse(false);
-  // navControl().disable();
+  navControl().disable();
 }
 
 void CHON::chonReset() {
@@ -224,20 +187,18 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
     if (nY > 1) {
       if (!drawGUI) {
         nav().pos(0, 0, 0);
-        nav().pullBack(2 + pow(0.002 * (1900 - width()), 2));
-      }
-      if (drawGUI) {
-        nav().pos(-0.5 * (500 / width()), 0, 0);
-        nav().pullBack(2.5 + pow(0.002 * (1900 - width()), 2));
+        nav().pullBack(2 + pow(0.002 * (1900 - w), 2));
+      } else {
+        nav().pos(-0.5 * (500 / w), 0, 0);
+        nav().pullBack(2.5 + pow(0.002 * (1900 - w), 2));
       }
     } else {
       if (!drawGUI) {
         nav().pos(0, 0, 0);
-        nav().pullBack(1.2 + pow(0.002 * (1900 - width()), 2));
-      }
-      if (drawGUI) {
-        nav().pos(-0.5 * (500 / width()), 0, 0);
-        nav().pullBack(1.5 + pow(0.002 * (1900 - width()), 2));
+        nav().pullBack(1.2 + pow(0.002 * (1900 - w), 2));
+      } else {
+        nav().pos(-0.5 * (500 / w), 0, 0);
+        nav().pullBack(1.5 + pow(0.002 * (1900 - w), 2));
       }
     }
   }
@@ -259,7 +220,6 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
 
   if (!pause) {
     updateVelocities(particle, springLength, freedom, kX, kY, mAll, b, 60);
-
     for (int x = 1; x <= nX; x++)
       for (int y = 1; y <= nY; y++) {  // animate stuff
         if (((y - 1) * nX) + x == picked) {
@@ -287,30 +247,21 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
         }
 
         if (fm) {
-          if (nY > 1) {
-            if (fmAxis == 0)
-              particle[x][y].fmSmooth.setTarget(abs(particle[x][y].displacement[fmAxis]));
-            else
-              particle[x][y].fmSmooth.setTarget(abs(particle[x][y].displacement[fmAxis]));
-          } else {
-            if (fmAxis == 0)
-              particle[x][y].fmSmooth.setTarget(
-                abs(particle[x][y].displacement[fmAxis] / springLength));
-            else
-              particle[x][y].fmSmooth.setTarget(abs(particle[x][y].displacement[fmAxis] / 5));
-          }
+          if (fmAxis == 0 || (fmAxis == 1 && nY > 1))
+            particle[x][y].fmSmooth.setTarget(particle[x][y].displacement[fmAxis] / springLength);
+          else
+            particle[x][y].fmSmooth.setTarget(particle[x][y].displacement[fmAxis]);
         }
 
         if (am) {
-          if (amAxis == 0)
-            particle[x][y].amSmooth.setTarget(
-              abs((particle[x][y].displacement[amAxis] / springLength)));
-          else
-            particle[x][y].amSmooth.setTarget(abs(particle[x][y].displacement[amAxis] / 5));
-          if (particle[x][y].amSmooth.getTargetValue() > 1) particle[x][y].amSmooth.setTarget(1.0f);
+          float val = particle[x][y].displacement[amAxis];
+          if (fmAxis == 0 || (fmAxis == 1 && nY > 1)) val /= springLength;
+          val > 1 ? 1 : val;
+          val < -1 ? -1 : val;
+          particle[x][y].amSmooth.setTarget(val);
         }
 
-        for (int j = 0; j < 3; j++) {
+        for (int j = 0; j < 3; j++) {  // check if zero crossing
           if (signbit(particle[x][y].prevDisplacement[j]) !=
                 signbit(particle[x][y].displacement[j]) &&
               abs(particle[x][y].prevDisplacement[j] - particle[x][y].displacement[j]) > 0.00001)
@@ -662,7 +613,13 @@ bool CHON::onKeyDown(Keyboard const &k) {
       }
       break;
     case 'r':
-      // nav().home();
+      srand(std::time(0));
+      for (int x = 1; x <= nX; x++)
+        for (int y = 1; y <= nY; y++) {
+          particle[x][y].velocity[0] += (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 5;
+          particle[x][y].velocity[1] += (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 5;
+          particle[x][y].velocity[2] += (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 5;
+        }
       break;
     default:
       break;
