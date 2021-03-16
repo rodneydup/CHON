@@ -92,8 +92,8 @@ class CHON : public App {
 
   std::unique_ptr<BundleGUIManager> xSpringGUI;
   std::unique_ptr<BundleGUIManager> ySpringGUI;
-  Parameter mAll{"Mass All", "physics", 1.0f, "", 1.0f, 100.0f};  // Master mass
-  Parameter b{"Damping", "physics", 0.0f, "", 0.0f, 5.0f};        // damping
+  Parameter mAll{"Mass", "physics", 1.0f, "", 1.0f, 100.0f};  // Master mass
+  Parameter b{"Damping", "physics", 0.0f, "", 0.0f, 5.0f};    // damping
   ParameterBool xFree{"X axis", "Degrees of Freedom", 1};
   ParameterBool yFree{"Y axis", "Degrees of Freedom", 0};
   ParameterBool zFree{"Z axis", "Degrees of Freedom", 0};
@@ -108,26 +108,27 @@ class CHON : public App {
 
   ParameterBool AdditiveSynthOn{"Additive Synth On", "Synthesis", 0};  // Additive Synth toggle
   ParameterBool bellSynthOn{"Bell Synth On", "Synthesis", 0};          // Additive Synth toggle
-  ParameterMenu bellAxis{"Bell Axis"};
-  ParameterMenu bellScale{"Bell Tuning"};                                   // Tuning of Bell synth
+  ParameterMenu bellAxis{"Axis##bell"};
+  ParameterMenu bellScale{"Scale##bell"};                                   // Tuning of Bell synth
   Parameter bellRoot{"Root##bell", "Synthesis", 60.0f, "", 1.0f, 1000.0f};  // Root of bell tuning
-  Parameter bellVolume{"Bell Volume", "Synthesis", 0.5f, "", 0.0f, 1.0f};   // Volume of bell synth
+  Parameter bellVolume{"Volume##bell", "Synthesis", 0.5f, "", 0.0f, 1.0f};  // Volume of bell synth
 
-  Parameter additiveVolume{
-    "Additive Volume", "Synthesis", 0.5f, "", 0.0f, 1.0f};           // Volume of bell synth
-  ParameterBool reverbOn{"Reverb On", "Synthesis", 1};               // Reverb
-  Parameter reverbTail{"Tail", "Synthesis", 0.15f, "", 0.0f, 1.0f};  // Reverb decay time
-  ParameterBool fm{"FM", "Synthesis", 0};                            // FM toggle
-  Parameter fmFreqMultiplier{
-    "FM Freq", "Synthesis", 1.5f,
-    "",        0.0f,        2.0f};  // FM Frequency Multiplier (relative to carrier freq)
-  ParameterMenu fmAxis{"FM Axis"};
-  ParameterBool am{"AM", "Synthesis", 0};  // AM toggle
-  ParameterMenu amAxis{"AM Axis"};
-  Parameter fmWidth{"FM Width", "Synthesis", 2.0f, "", 0.1f, 5.0f};  // FM Width
-  // ParameterMenu bellScale{"Bell Tuning"};                            // Tuning of Bell synth
   Parameter additiveRoot{"Root##additive", "Synthesis", 60.0f, "", 1.0f,
                          1000.0f};  // root of additive synth
+  Parameter additiveVolume{
+    "Volume##additive", "Synthesis", 0.5f, "", 0.0f, 1.0f};  // Volume of bell synth
+
+  ParameterBool fm{"FM On", "Synthesis", 0};  // FM toggle
+  ParameterMenu fmAxis{"Axis##FM"};
+  Parameter fmFreq{
+    "Frequency##FM", "Synthesis", 1.5f, "", 0.0f, 2.0f};              // FM freq (ratio to carrier)
+  Parameter fmWidth{"Width##FM", "Synthesis", 2.0f, "", 0.1f, 5.0f};  // FM Width
+
+  ParameterBool am{"AM On", "Synthesis", 0};  // AM toggle
+  ParameterMenu amAxis{"Axis##AM"};
+
+  ParameterBool reverbOn{"Reverb On", "Synthesis", 0};               // Reverb
+  Parameter reverbTail{"Tail", "Synthesis", 0.15f, "", 0.0f, 1.0f};  // Reverb decay time
 
   std::vector<float> majScale{1.000000,  1.125000,  1.250000,  1.333333,  1.500000,  1.666667,
                               1.875000,  2.000000,  2.250000,  2.500000,  2.666667,  3.000000,

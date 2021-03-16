@@ -394,14 +394,12 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::beginPanel("Display", 0, yposition, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
-    ImGui::Text("Graph");
     ParameterGUI::drawParameterBool(&DrawGraph);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(35);
     ParameterGUI::drawMenu(&graphAxis);
     ParameterGUI::drawParameter(&graphSpread);
     ParameterGUI::drawParameter(&graphSpeed);
-    ImGui::Text("Particle System");
     ParameterGUI::drawParameterBool(&drawParticles);
     ParameterGUI::drawParameterBool(&drawBoundaries);
     ImGui::Text("Framerate %.3f", ImGui::GetIO().Framerate);
@@ -427,12 +425,14 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     else if (yParticles < 1)
       yParticles = 1;
     ImGui::PopItemWidth();
+    ImGui::Separator();
     ImGui::PushItemWidth(200);
     xSpringGUI->drawBundleGUI();
     if (nY > 1) ySpringGUI->drawBundleGUI();
     ImGui::PopItemWidth();
     ParameterGUI::drawParameter(&mAll);
     ParameterGUI::drawParameter(&b);
+    ImGui::Separator();
     ImGui::Text("Degrees of Freedom");
     ParameterGUI::drawParameterBool(&xFree);
     ImGui::SameLine();
@@ -448,8 +448,8 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::beginPanel("Synthesis", 0, yposition, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
-    ParameterGUI::drawParameterBool(&bellSynthOn);
-    if (bellSynthOn) {
+    if (ImGui::CollapsingHeader("Bell Synth")) {
+      ParameterGUI::drawParameterBool(&bellSynthOn);
       ImGui::SetNextItemWidth(35);
       ImGui::SameLine();
       ParameterGUI::drawMenu(&bellAxis);
@@ -457,23 +457,31 @@ void CHON::onDraw(Graphics &g) {  // Draw function
       ParameterGUI::drawParameter(&bellRoot);
       ParameterGUI::drawParameter(&bellVolume);
     }
-    ParameterGUI::drawParameterBool(&AdditiveSynthOn);
-    if (AdditiveSynthOn) {
-      ParameterGUI::drawParameter(&additiveVolume);
+    if (ImGui::CollapsingHeader("Additive Synth")) {
+      ParameterGUI::drawParameterBool(&AdditiveSynthOn);
       ParameterGUI::drawParameter(&additiveRoot);
-      ParameterGUI::drawParameterBool(&fm);
-      ImGui::SameLine();
-      ImGui::SetNextItemWidth(35);
-      ParameterGUI::drawMenu(&fmAxis);
-      ParameterGUI::drawParameter(&fmFreqMultiplier);
-      ParameterGUI::drawParameter(&fmWidth);
-      ParameterGUI::drawParameterBool(&am);
-      ImGui::SameLine();
-      ImGui::SetNextItemWidth(35);
-      ParameterGUI::drawMenu(&amAxis);
+      ParameterGUI::drawParameter(&additiveVolume);
+      if (ImGui::CollapsingHeader("FM")) {
+        ParameterGUI::drawParameterBool(&fm);
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(35);
+        ParameterGUI::drawMenu(&fmAxis);
+        ParameterGUI::drawParameter(&fmFreq);
+        ParameterGUI::drawParameter(&fmWidth);
+      }
+      if (ImGui::CollapsingHeader("AM")) {
+        ParameterGUI::drawParameterBool(&am);
+        {
+          ImGui::SameLine();
+          ImGui::SetNextItemWidth(35);
+          ParameterGUI::drawMenu(&amAxis);
+        }
+      }
     }
-    ParameterGUI::drawParameterBool(&reverbOn);
-    if (reverbOn) ParameterGUI::drawParameter(&reverbTail);
+    if (ImGui::CollapsingHeader("Reverb")) {
+      ParameterGUI::drawParameterBool(&reverbOn);
+      ParameterGUI::drawParameter(&reverbTail);
+    }
     ImGui::PopFont();
     yposition += ImGui::GetWindowHeight();
     ParameterGUI::endPanel();
@@ -483,6 +491,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
     ParameterGUI::drawParameterBool(&oscOn);
+    ImGui::Text("Sending:");
     ParameterGUI::drawParameterBool(&oscX);
     ImGui::SameLine();
     ParameterGUI::drawParameterBool(&oscY);
@@ -513,7 +522,7 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
           for (int y = 1; y <= nY; y++) {  // add all oscillator samples to be sent to output
             if (x * additiveRoot < 20000) {
               if (fm) {
-                particle[x][y].FM.freq(x * y * additiveRoot * fmFreqMultiplier);
+                particle[x][y].FM.freq(x * y * additiveRoot * fmFreq);
                 particle[x][y].fmSmooth.process();
                 particle[x][y].oscillator.freq(
                   (x * y * additiveRoot) +
