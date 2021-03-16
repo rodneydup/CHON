@@ -76,6 +76,8 @@ void CHON::onInit() {  // Called on app start
       }
     }
   });
+  reverbTail.registerChangeCallback([&](float tail) { reverb.decay(tail); });
+
   graphAxis.setElements({"x", "y", "z"});
   fmAxis.setElements({"x", "y", "z"});
   amAxis.setElements({"x", "y", "z"});
@@ -133,7 +135,7 @@ void CHON::onCreate() {  // Called when graphics context is available
 }
 
 void CHON::chonReset() {
-  std::cout << "Reset Particle network to" << xParticles << "by" << yParticles << std::endl;
+  std::cout << "Reset Particle network to " << xParticles << " by " << yParticles << std::endl;
   resetLock.lock();
 
   // changing camera depending on if it's a 2D or 1D particle system
@@ -471,6 +473,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
       ParameterGUI::drawMenu(&amAxis);
     }
     ParameterGUI::drawParameterBool(&reverbOn);
+    if (reverbOn) ParameterGUI::drawParameter(&reverbTail);
     ImGui::PopFont();
     yposition += ImGui::GetWindowHeight();
     ParameterGUI::endPanel();

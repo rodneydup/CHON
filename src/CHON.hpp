@@ -114,9 +114,10 @@ class CHON : public App {
   Parameter bellVolume{"Bell Volume", "Synthesis", 0.5f, "", 0.0f, 1.0f};   // Volume of bell synth
 
   Parameter additiveVolume{
-    "Additive Volume", "Synthesis", 0.5f, "", 0.0f, 1.0f};  // Volume of bell synth
-  ParameterBool reverbOn{"Reverb On", "Synthesis", 1};      // Reverb
-  ParameterBool fm{"FM", "Synthesis", 0};                   // FM toggle
+    "Additive Volume", "Synthesis", 0.5f, "", 0.0f, 1.0f};           // Volume of bell synth
+  ParameterBool reverbOn{"Reverb On", "Synthesis", 1};               // Reverb
+  Parameter reverbTail{"Tail", "Synthesis", 0.15f, "", 0.0f, 1.0f};  // Reverb decay time
+  ParameterBool fm{"FM", "Synthesis", 0};                            // FM toggle
   Parameter fmFreqMultiplier{
     "FM Freq", "Synthesis", 1.5f,
     "",        0.0f,        2.0f};  // FM Frequency Multiplier (relative to carrier freq)
