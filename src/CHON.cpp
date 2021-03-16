@@ -104,22 +104,12 @@ void CHON::chonReset() {
   // changing camera depending on if it's a 2D or 1D particle system
   if (nY == 1 && yParticles > 1) {
     nav().home();
-    nav().pullBack(2 + pow(0.002 * (1900 - width()), 2));
+    onResize(width(), height());
     nav().turnF(-0.5);
     nav().faceToward(Vec3d{1, 1, -1});
   } else if (yParticles == 1) {
     nav().home();
-    if (!drawGUI) {
-      nav().pos(0, 0, 0);
-      nav().pullBack(1.2 + pow(0.002 * (1900 - w), 2));
-    }
-    if (drawGUI) {
-      nav().pos(-0.5 * (500 / w), 0, 0);
-      nav().pullBack(1.5 + pow(0.002 * (1900 - w), 2));
-    }
-  } else if (nY > 1) {
-    nav().pullBack(2 + pow(0.002 * (1900 - width()), 2));
-    nav().faceToward(Vec3d{1, 1, -1});
+    onResize(width(), height());
   }
 
   // synchronize these variables
@@ -507,13 +497,13 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
 void CHON::onResize(int width, int height) {
   if (!drawGUI) {
     nav().pos(0, 0, 0);
-    if (nY > 1)
+    if (yParticles > 1)
       nav().pullBack(2 + pow(0.002 * (1900 - width), 2));
     else
       nav().pullBack(1.2 + pow(0.002 * (1900 - width), 2));
   } else {
     nav().pos(-0.5 * (500 / float(width)), 0, 0);
-    if (nY > 1)
+    if (yParticles > 1)
       nav().pullBack(2.5 + pow(0.002 * (1900 - width), 2));
     else
       nav().pullBack(1.5 + pow(0.002 * (1900 - width), 2));
