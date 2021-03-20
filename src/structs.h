@@ -54,7 +54,7 @@ struct Spring {
     bundle.name(name);
     bundle << k;
   }
-  al::Parameter k{"Stiffness", "physics", 1.0f, "", 1.0f, 60.0f};
+  al::Parameter k{"Stiffness", "physics", 1.0f, "", 1.0f, 50.0f};
   al::ParameterBundle bundle;
 };
 

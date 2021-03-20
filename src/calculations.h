@@ -9,9 +9,9 @@ std::array<double, 3> calculateForcesFixed(Particle &first, Particle &second, do
     return forceComponents;  // return no force if no axis activated
   }
 
-  double x = ((second.x() - first.x()) - (second.equilibrium[0] - first.equilibrium[0])) * k;
-  double y = ((second.y() - first.y()) - (second.equilibrium[1] - first.equilibrium[1])) * k;
-  double z = ((second.z() - first.z()) - (second.equilibrium[2] - first.equilibrium[2])) * k;
+  double x = (second.displacement[0] - first.displacement[0]) * k;
+  double y = (second.displacement[1] - first.displacement[1]) * k;
+  double z = (second.displacement[2] - first.displacement[2]) * k;
 
   if (freedom[0]) forceComponents[0] = x;
   if (freedom[1]) forceComponents[1] = y;
