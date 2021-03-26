@@ -65,6 +65,7 @@ struct Particle {
   double equilibrium[3] = {0, 0, 0};
   double displacement[3] = {0, 0, 0};
   double prevDisplacement[3] = {0, 0, 0};
+  std::string oscName[3] = {"", "", ""};
   SmoothValue<float> amSmooth;
   SmoothValue<float> fmSmooth;
 

@@ -1,6 +1,7 @@
 // To Do:
 // - Allow more variables to be sent by OSC (velocity, potential energy)
 // - add presets saving and loading
+// - Implement "kuramoto mode"
 
 #include "CHON.hpp"
 
@@ -16,7 +17,7 @@ void CHON::onInit() {  // Called on app start
   client.open(port, addr);
   texBlur.filter(Texture::LINEAR);
 
-  nav().pos(0, 0, 0);
+  nav().pos(0, 0.2, 0);
   nav().pullBack(1.5);
   nav().setHome();
 
@@ -103,12 +104,10 @@ void CHON::chonReset() {
 
   // changing camera depending on if it's a 2D or 1D particle system
   if (nY == 1 && yParticles > 1) {
-    nav().home();
     onResize(width(), height());
     nav().turnF(-0.5);
     nav().faceToward(Vec3d{1, 1, -1});
   } else if (yParticles == 1) {
-    nav().home();
     onResize(width(), height());
   }
 
@@ -140,6 +139,9 @@ void CHON::chonReset() {
       particle[x][y].particle.pose.setPos(particle[x][y].equilibrium);
       particle[x][y].graph.primitive(Mesh::LINE_STRIP);
       particle[x][y].mass = mAll;
+      particle[x][y].oscName[0] = "/dispX/" + std::to_string(((y - 1) * nX) + x) + "/";
+      particle[x][y].oscName[1] = "/dispY/" + std::to_string(((y - 1) * nX) + x) + "/";
+      particle[x][y].oscName[2] = "/dispZ/" + std::to_string(((y - 1) * nX) + x) + "/";
     }
 
   xSpringGUI.reset(new BundleGUIManager());
@@ -206,25 +208,18 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
             particle[x][y].graph.vertices().erase(
               particle[x][y].graph.vertices().begin());               // erase left hand graph data
           float graphY = h * particle[x][y].displacement[graphAxis];  // calculate new phase value
-          if (graphAxis == 0)
-            graphY /= springLength * 2;  // scale for longitudinal waves
-          else
-            graphY /= 20;  // scale for transverse waves
+          graphY /= springLength * 2;
           graphY += (h * ((graphSpread * x / (nX + 1)) +
                           ((0.75 - (graphSpread / 2)))));  // add offset for each graph
           particle[x][y].graph.vertex(w, graphY, 0);       // update with new graph data on right
         }
 
         if (fm) {
-          if (fmAxis == 0 || (fmAxis == 1 && nY > 1))
-            particle[x][y].fmSmooth.setTarget(particle[x][y].displacement[fmAxis] / springLength);
-          else
-            particle[x][y].fmSmooth.setTarget(particle[x][y].displacement[fmAxis]);
+          particle[x][y].fmSmooth.setTarget(particle[x][y].displacement[fmAxis] / springLength);
         }
 
         if (am) {
-          float val = particle[x][y].displacement[amAxis];
-          if (fmAxis == 0 || (fmAxis == 1 && nY > 1)) val /= springLength;
+          float val = particle[x][y].displacement[amAxis] / springLength;
           val > 1 ? 1 : val;
           val < -1 ? -1 : val;
           particle[x][y].amSmooth.setTarget(val);
@@ -241,14 +236,11 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
         if (oscOn) {
           particle[x][y].updateDisplacement();
           if (oscX)
-            client.send("/displacementX", ((y - 1) * nX) + x,
+            client.send(particle[x][y].oscName[0],
                         float(particle[x][y].displacement[0] / springLength));
-          if (oscY)
-            client.send("/displacementY", ((y - 1) * nX) + x,
-                        float(particle[x][y].displacement[1]));
-          if (oscZ)
-            client.send("/displacementZ", ((y - 1) * nX) + x,
-                        float(particle[x][y].displacement[2]));
+          std::cout << particle[x][y].oscName[0] << std::endl;
+          if (oscY) client.send(particle[x][y].oscName[1], float(particle[x][y].displacement[1]));
+          if (oscZ) client.send(particle[x][y].oscName[2], float(particle[x][y].displacement[2]));
         }
       }
   }
@@ -321,6 +313,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::drawParameter(&graphSpread);
     ParameterGUI::drawParameter(&graphSpeed);
     ParameterGUI::drawParameterBool(&drawParticles);
+    ImGui::SameLine();
     ParameterGUI::drawParameterBool(&drawBoundaries);
     ImGui::Text("Framerate %.3f", ImGui::GetIO().Framerate);
     ImGui::PopFont();
@@ -496,15 +489,16 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
 
 void CHON::onResize(int width, int height) {
   if (!drawGUI) {
-    nav().pos(0, 0, 0);
+    nav().home();
     if (yParticles > 1)
-      nav().pullBack(2 + pow(0.002 * (1900 - width), 2));
+      nav().pullBack(2.2 + pow(0.002 * (1900 - width), 2));
     else
       nav().pullBack(1.2 + pow(0.002 * (1900 - width), 2));
   } else {
-    nav().pos(-0.5 * (500 / float(width)), 0, 0);
+    nav().home();
+    nav().pos(-0.5 * (500 / float(width)), 0.2, 0);
     if (yParticles > 1)
-      nav().pullBack(2.5 + pow(0.002 * (1900 - width), 2));
+      nav().pullBack(2.7 + pow(0.002 * (1900 - width), 2));
     else
       nav().pullBack(1.5 + pow(0.002 * (1900 - width), 2));
   }
@@ -574,12 +568,14 @@ bool CHON::onKeyDown(Keyboard const &k) {
   switch (k.key()) {
     case 'p':
       pause = 1 - pause;
-      break;
+      return false;
+    case 'v':
+      onResize(width(), height());
+      return false;
     case 'g':
       drawGUI = 1 - drawGUI;
       onResize(width(), height());
-
-      break;
+      return false;
     case 'r':
       srand(std::time(0));
       for (int x = 1; x <= nX; x++)
@@ -588,7 +584,38 @@ bool CHON::onKeyDown(Keyboard const &k) {
           particle[x][y].velocity[1] += (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 5;
           particle[x][y].velocity[2] += (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 5;
         }
+      return false;
+    case Keyboard::UP:
+      nav().moveU(0.02);
+      return false;
+    case Keyboard::DOWN:
+      nav().moveU(-0.02);
+      return false;
+    case Keyboard::LEFT:
+      nav().spinU(0.02);
+      return false;
+    case Keyboard::RIGHT:
+      nav().spinU(-0.02);
+      return false;
+    default:
       break;
+  }
+  return true;
+}
+
+bool CHON::onKeyUp(Keyboard const &k) {
+  switch (k.key()) {
+    case Keyboard::UP:
+      nav().moveU(0);
+      return false;
+    case Keyboard::DOWN:
+      nav().moveU(0);
+      return false;
+    case Keyboard::LEFT:
+      nav().spinU(0);
+      return false;
+    case Keyboard::RIGHT:
+      nav().spinU(0);
     default:
       break;
   }

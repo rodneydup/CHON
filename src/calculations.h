@@ -38,17 +38,14 @@ void updateVelocities(std::vector<std::vector<Particle>> &particle, double sprin
         std::array<double, 3> forcesY =
           calculateForcesFixed(particle[x][y], particle[x][y + 1], springLength, kY[y], freedom);
         for (int j = 0; j < 3; j++) {
-          particle[x][y].acceleration[j] +=
-            forcesY[j];  // acceleration due to above particle spring
-          particle[x][y + 1].acceleration[j] -=
-            forcesY[j];  // opposite acceleration on above particle
+          particle[x][y].acceleration[j] += forcesY[j];      // force due to above particle spring
+          particle[x][y + 1].acceleration[j] -= forcesY[j];  // opposite force on above particle
         }
       }
 
       for (int j = 0; j < 3; j++) {
-        particle[x][y].acceleration[j] += forcesX[j];  // acceleration due to right particle spring
-        particle[x + 1][y].acceleration[j] -=
-          forcesX[j];  // opposite acceleration on right particle
+        particle[x][y].acceleration[j] += forcesX[j];      // force due to right particle spring
+        particle[x + 1][y].acceleration[j] -= forcesX[j];  // opposite force on right particle
 
         particle[x][y].acceleration[j] = (particle[x][y].acceleration[j] / m) -
                                          (particle[x][y].velocity[j] * b);  // (kx / m) - (vb)

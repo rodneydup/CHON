@@ -53,6 +53,8 @@ class CHON : public App {
 
   virtual bool onKeyDown(al::Keyboard const &k) override;
 
+  virtual bool onKeyUp(al::Keyboard const &k) override;
+
   virtual void chonReset();
 
   /** MIDI Stuff **/
