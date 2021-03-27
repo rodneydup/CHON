@@ -259,7 +259,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
   g.depthTesting(true);
   g.lighting(true);
   g.color(0.5, 0.5, 0.5);
-  g.polygonMode(Graphics::FILL);
+  g.polygonFill();
 
   if (drawBoundaries) {
     g.color(1);
