@@ -1,9 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
 set(APP_NAME CHON)
-project(${APP_NAME} VERSION 1.0
-                    DESCRIPTION "Coupled oscillator signal generator"
-                    LANGUAGES CXX)
 
 # bunch of stuff for packaging MacOS Apps
 if(APPLE)
@@ -44,16 +41,17 @@ if(APPLE)
       INSTALL( DIRECTORY ${RESOURCE_DIR} DESTINATION "${DATA_DIR}" PATTERN "*.am" EXCLUDE)
     endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   endforeach()
-endif(APPLE)
-
-add_executable(${APP_NAME} MACOSX_BUNDLE
+  add_executable(${APP_NAME} MACOSX_BUNDLE
   src/CHON.cpp
   ${RESOURCE_FILES}
   ${ICON}
-)
+  )
+endif(APPLE)
 
-# path to main source file
-add_executable(${APP_NAME} src/CHON.cpp)
+if(UNIX AND NOT APPLE)
+  # path to main source file
+  add_executable(${APP_NAME} src/CHON.cpp)
+endif()
 
 # add allolib as a subdirectory to the project
 add_subdirectory(allolib)

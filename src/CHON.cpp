@@ -9,6 +9,7 @@
 
 void CHON::onInit() {  // Called on app start
   std::cout << "onInit()" << std::endl;
+  title("CHON");
 
   reverb.bandwidth(0.9);  // Low-pass amount on input, in [0,1]
   reverb.damping(0.1);    // High-frequency damping, in [0,1]
@@ -80,6 +81,7 @@ void CHON::onInit() {  // Called on app start
         break;
     }
   });
+  audioIO().setStreamName("EmissionControl2");
 }
 
 void CHON::onCreate() {  // Called when graphics context is available
