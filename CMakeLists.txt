@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(CHON)
-
-# name of application. replace 'app' with desired app name
 set(APP_NAME CHON)
+project(${APP_NAME} VERSION 1.0
+                    DESCRIPTION "Coupled oscillator signal generator"
+                    LANGUAGES CXX)
 
 # bunch of stuff for packaging MacOS Apps
 if(APPLE)
@@ -45,6 +45,12 @@ if(APPLE)
     endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   endforeach()
 endif(APPLE)
+
+add_executable(${APP_NAME} MACOSX_BUNDLE
+  src/CHON.cpp
+  ${RESOURCE_FILES}
+  ${ICON}
+)
 
 # path to main source file
 add_executable(${APP_NAME} src/CHON.cpp)
