@@ -25,5 +25,9 @@ fi
 
 result=$?
 if [ ${result} == 0 ]; then
-  ./bin/CHON
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    ./bin/CHON
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
+    open bin/CHON.app
+  fi
 fi
