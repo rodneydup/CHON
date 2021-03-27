@@ -17,6 +17,10 @@ The application is written in C++ and uses the Allolib framework extensively.
 
 # Building
 
+## CHECK THE RELEASES PAGE FOR A COMPILED VERSION FOR YOUR OPERATING SYSTEM (https://github.com/rodneydup/CHON/releases)
+
+### If you can't find one, or if you want to try compiling it yourself, follow the instructions below.
+
 ## Dependencies
 
 terminal to run bash
