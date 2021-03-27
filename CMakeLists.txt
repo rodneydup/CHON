@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.0)
 
 set(APP_NAME CHON)
+project(${APP_NAME} VERSION 1.0
+                    DESCRIPTION "Coupled oscillator signal generator"
+                    LANGUAGES CXX)
 
 # bunch of stuff for packaging MacOS Apps
 if(APPLE)
@@ -83,3 +86,12 @@ set_target_properties(${APP_NAME} PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_LIST_DIR}/bin
   RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_LIST_DIR}/bin
 )
+
+if(APPLE)
+  set_target_properties(${APP_NAME} PROPERTIES
+  MACOSX_BUNDLE_BUNDLE_NAME "${APP_NAME}"
+  MACOSX_BUNDLE_GUI_IDENTIFIER "${APP_NAME}"
+  MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/deployment/MacOS/MacOSBundleInfo.plist.in
+  )
+
+endif(APPLE)
