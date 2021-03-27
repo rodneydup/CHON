@@ -240,7 +240,6 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
           if (oscX)
             client.send(particle[x][y].oscName[0],
                         float(particle[x][y].displacement[0] / springLength));
-          std::cout << particle[x][y].oscName[0] << std::endl;
           if (oscY) client.send(particle[x][y].oscName[1], float(particle[x][y].displacement[1]));
           if (oscZ) client.send(particle[x][y].oscName[2], float(particle[x][y].displacement[2]));
         }
