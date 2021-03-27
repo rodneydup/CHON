@@ -11,12 +11,6 @@ if [ $# -eq 0 ]; then
   exit 1
 fi
 
-# make sure we're in ecSource
-
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-
-cd "$Dir"
-
 VERSION="$1""-1"
 RELEASENAME="CHON-""$VERSION""-amd64"
 BUILDLOCATION=$(cd ../deployment && pwd)

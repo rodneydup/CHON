@@ -5,6 +5,47 @@ project(CHON)
 # name of application. replace 'app' with desired app name
 set(APP_NAME CHON)
 
+# bunch of stuff for packaging MacOS Apps
+if(APPLE)
+  set(RESOURCE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/bin/CHON.app/Contents/Resources")
+  set(CMAKE_MACOSX_RPATH 1)
+
+  set(MACOSX_BUNDLE_ICON_FILE "CHON.icns")
+  set(ICON ${CMAKE_CURRENT_SOURCE_DIR}/deployment/icons/CHON.icns)
+  set_source_files_properties(${ICON} PROPERTIES
+       MACOSX_PACKAGE_LOCATION "Resources")
+
+  set(CMAKE_INSTALL_RPATH "@executable_path/../Resources/")
+  set(RESOURCE_LIST
+  )
+
+  foreach(RESOURCE_DIR_NAME ${RESOURCE_LIST})
+    SET(RESOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../externalResources/${RESOURCE_DIR_NAME}")
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+      file(GLOB CHILDREN RELATIVE "${RESOURCE_DIR}" ${RESOURCE_DIR}/*)
+      foreach(CHILD ${CHILDREN})
+        IF(IS_DIRECTORY "${RESOURCE_DIR}/${CHILD}")
+          # be wary of .DS_Store files. glob them out by using [A-Za-z]*.*
+          FILE(GLOB RESOURCE_DIR_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${RESOURCE_DIR}/${CHILD}/[A-Za-z]*.*")
+          SET_SOURCE_FILES_PROPERTIES(
+            ${RESOURCE_DIR_FILES}
+            PROPERTIES MACOSX_PACKAGE_LOCATION Resources/${RESOURCE_DIR_NAME}/${CHILD}
+          )
+          SET(RESOURCE_FILES ${RESOURCE_FILES} "../externalResources/${RESOURCE_DIR_FILES}")
+        ELSEIF(NOT ${CHILD} MATCHES "\\.DS_Store|.*\\.am")
+          SET_SOURCE_FILES_PROPERTIES(
+            "${RESOURCE_DIR}/${CHILD}"
+            PROPERTIES MACOSX_PACKAGE_LOCATION Resources/${RESOURCE_DIR_NAME}
+          )
+          SET(RESOURCE_FILES ${RESOURCE_FILES} "../externalResources/${RESOURCE_DIR_NAME}/${CHILD}")
+        ENDIF()
+      endforeach()
+    else(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") #WORK ON
+      INSTALL( DIRECTORY ${RESOURCE_DIR} DESTINATION "${DATA_DIR}" PATTERN "*.am" EXCLUDE)
+    endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  endforeach()
+endif(APPLE)
+
 # path to main source file
 add_executable(${APP_NAME} src/CHON.cpp)
 
