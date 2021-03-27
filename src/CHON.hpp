@@ -1,5 +1,5 @@
-#include "./Roboto-Medium.cpp"
-#include "./calculations.h"
+#include "./Roboto-Medium.hpp"
+#include "./calculations.hpp"
 #include "Gamma/Filter.h"
 #include "Gamma/Noise.h"
 #include "Gamma/Oscillator.h"
@@ -191,5 +191,4 @@ class CHON : public App {
                            ImGuiWindowFlags_AlwaysAutoResize;
   ImFont *bodyFont;
   ImFont *titleFont;
-  
 };

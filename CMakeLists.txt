@@ -6,11 +6,39 @@ project(${APP_NAME} VERSION 1.0
                     DESCRIPTION "Coupled oscillator signal generator"
                     LANGUAGES CXX)
 
+# add allolib as a subdirectory to the project
+add_subdirectory(allolib)
 
+set(includes
+src/calculations.hpp
+src/structs.hpp
+src/CHON.hpp
+)
+
+set(srcs
+src/CHON.cpp
+)
+
+add_library(chonLib
+  STATIC 
+    ${includes}
+    ${srcs}
+)
+
+
+target_link_libraries(chonLib PUBLIC 
+  al 
+)
+
+set_target_properties(chonLib PROPERTIES
+  CXX_STANDARD 14
+  CXX_STANDARD_REQUIRED ON
+)
 
 # bunch of stuff for packaging MacOS Apps
 if(APPLE)
   find_library(AppKit Appkit)
+  target_link_libraries(chonLib PUBLIC ${Appkit})
 
   set(RESOURCE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/bin/CHON.app/Contents/Resources")
   set(CMAKE_MACOSX_RPATH 1)
@@ -32,9 +60,6 @@ if(UNIX AND NOT APPLE)
   # path to main source file
   add_executable(${APP_NAME} src/CHON.cpp)
 endif()
-
-# add allolib as a subdirectory to the project
-add_subdirectory(allolib)
 
 if (EXISTS ${CMAKE_CURRENT_LIST_DIR}/al_ext)
   message("Buiding extensions in al_ext")
@@ -63,6 +88,8 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
 # replace ${PATH_TO_LIB_FILE} before linking other libraries
 # target_link_libraries(${APP_NAME} PRIVATE ${PATH_TO_LIB_FILE})
+
+target_link_libraries(${APP_NAME} PUBLIC chonLib ${LIBRARIES})
 
 # binaries are put into the ./bin directory by default
 set_target_properties(${APP_NAME} PROPERTIES

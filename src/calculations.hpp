@@ -1,4 +1,4 @@
-#include "./structs.h"
+#include "./structs.hpp"
 
 std::array<double, 3> calculateForcesFixed(Particle &first, Particle &second, double springLength,
                                            double k, bool freedom[3]) {
