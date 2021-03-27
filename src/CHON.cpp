@@ -86,6 +86,8 @@ void CHON::onCreate() {  // Called when graphics context is available
   std::cout << "onCreate()" << std::endl;
 
   imguiInit();
+  ImGuiIO &io = ImGui::GetIO();
+  io.IniFilename = NULL;
 
   bodyFont = ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(&RobotoMedium_compressed_data,
                                                                   RobotoMedium_compressed_size, 16);

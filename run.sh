@@ -13,7 +13,14 @@ fi
   # utilizing cmake's parallel build options
   # recommended: -j <number of processor cores + 1>
   # This is supported in cmake >= 3.12 use -- -j5 for older versions
-  cmake --build build/release $THREADS
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    cmake --build ./build/release $THREADS
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
+    cmake --build ./build/release $THREADS
+  elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    echo "BUILD WINDOWS TODO"
+    cmake --build ./build/release $THREADS
+  fi
 )
 
 result=$?
