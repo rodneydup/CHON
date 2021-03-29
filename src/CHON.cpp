@@ -81,7 +81,7 @@ void CHON::onInit() {  // Called on app start
         break;
     }
   });
-  audioIO().setStreamName("EmissionControl2");
+  audioIO().setStreamName("CHON");
 }
 
 void CHON::onCreate() {  // Called when graphics context is available
