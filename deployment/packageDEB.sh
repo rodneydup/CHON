@@ -4,7 +4,7 @@ if [ $result == "deployment" ]; then
   cd ..
 fi
 
-mkdir -p "../deployment/Linux/"
+mkdir -p "deployment/Linux/"
 
 if [ $# -eq 0 ]; then
   echo "Error: No version number provided. Version number required in format <MajorVersion>.<MinorVersion>"
@@ -13,17 +13,18 @@ fi
 
 VERSION="$1""-1"
 RELEASENAME="CHON-""$VERSION""-amd64"
-BUILDLOCATION=$(cd ../deployment && pwd)
+BUILDLOCATION=$(cd deployment && pwd)
 
 echo "Packaging $RELEASENAME..."
 
 # make directory structure
 
-BUILDDIR="../deployment/Linux/$RELEASENAME"
+BUILDDIR="deployment/Linux/$RELEASENAME"
 
 mkdir -p "$BUILDDIR/DEBIAN"
 mkdir -p "$BUILDDIR/usr/bin"
 mkdir -p "$BUILDDIR/usr/share/applications/"
+mkdir -p "$BUILDDIR/usr/share/doc/CHON/"
 mkdir -p "$BUILDDIR/usr/share/pixmaps/"
 
 # copy necessary files over
@@ -32,7 +33,7 @@ cd "$Dir"
 
 objcopy --strip-debug --strip-unneeded bin/CHON "$BUILDDIR/usr/bin/CHON"
 
-cp "../externalResources/icon/CHON.png" "$BUILDDIR/usr/share/pixmaps/CHON.png"
+cp "deployment/icons/CHON.png" "$BUILDDIR/usr/share/pixmaps/CHON.png"
 
 # Make .desktop file
 echo "[Desktop Entry]
@@ -52,10 +53,9 @@ Section: sound
 Priority: optional
 Version:$VERSION
 Maintainer:Rodney DuPlessis <rodney@rodneyduplessis.com>
-Depends: libc6
-Homepage:https://github.com/rodneydup/CHON
-Description:This package provides CHON, an application for generating sonic gestures and control signals
-based on the physical simulation of a coupled harmonic oscillator network." >>"$BUILDDIR/DEBIAN/control"
+Depends:libsndfile1, libc6
+Homepage: https://github.com/rodneydup/CHON
+Description: This package provides CHON, an application for generating sonic gestures and control signals based on the physical simulation of a coupled harmonic oscillator network." >>"$BUILDDIR/DEBIAN/control"
 
 # make copyright file
 echo "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
@@ -93,7 +93,7 @@ gzip -9 -n "$BUILDDIR/usr/share/doc/CHON/changelog.Debian"
 echo "Packaging .deb at $BUILDLOCATION..."
 
 # package .deb
-cd ../deployment/Linux
+cd deployment/Linux
 fakeroot dpkg -b "$RELEASENAME" "$RELEASENAME.deb"
 
 echo "Packaging Complete!"

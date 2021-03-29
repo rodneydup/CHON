@@ -49,6 +49,37 @@ if(APPLE)
        MACOSX_PACKAGE_LOCATION "Resources")
 
   set(CMAKE_INSTALL_RPATH "@executable_path/../Resources/")
+
+  set(RESOURCE_LIST
+    "libsndfile"
+  )
+
+foreach(RESOURCE_DIR_NAME ${RESOURCE_LIST})
+  SET(RESOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deployment/externalResources/${RESOURCE_DIR_NAME}")
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    file(GLOB CHILDREN RELATIVE "${RESOURCE_DIR}" ${RESOURCE_DIR}/*)
+    foreach(CHILD ${CHILDREN})
+      IF(IS_DIRECTORY "${RESOURCE_DIR}/${CHILD}")
+        # be wary of .DS_Store files. glob them out by using [A-Za-z]*.*
+        FILE(GLOB RESOURCE_DIR_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${RESOURCE_DIR}/${CHILD}/[A-Za-z]*.*")
+        SET_SOURCE_FILES_PROPERTIES(
+          ${RESOURCE_DIR_FILES}
+          PROPERTIES MACOSX_PACKAGE_LOCATION Resources/${RESOURCE_DIR_NAME}/${CHILD}
+        )
+        SET(RESOURCE_FILES ${RESOURCE_FILES} "../externalResources/${RESOURCE_DIR_FILES}")
+      ELSEIF(NOT ${CHILD} MATCHES "\\.DS_Store|.*\\.am")
+        SET_SOURCE_FILES_PROPERTIES(
+          "${RESOURCE_DIR}/${CHILD}"
+          PROPERTIES MACOSX_PACKAGE_LOCATION Resources/${RESOURCE_DIR_NAME}
+        )
+      SET(RESOURCE_FILES ${RESOURCE_FILES} "../externalResources/${RESOURCE_DIR_NAME}/${CHILD}")
+    ENDIF()
+  endforeach()
+else(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") #WORK ON
+  INSTALL( DIRECTORY ${RESOURCE_DIR} DESTINATION "${DATA_DIR}" PATTERN "*.am" EXCLUDE)
+endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+endforeach()
+
   add_executable(${APP_NAME} MACOSX_BUNDLE
   src/CHON.cpp
   ${RESOURCE_FILES}
@@ -93,6 +124,8 @@ target_link_libraries(${APP_NAME} PUBLIC chonLib ${LIBRARIES})
 
 # binaries are put into the ./bin directory by default
 set_target_properties(${APP_NAME} PROPERTIES
+  BUILD_WITH_INSTALL_RPATH 1
+  INSTALL_NAME_DIR "@rpath"
   CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/bin
@@ -105,6 +138,50 @@ if(APPLE)
   MACOSX_BUNDLE_BUNDLE_NAME "${APP_NAME}"
   MACOSX_BUNDLE_GUI_IDENTIFIER "${APP_NAME}"
   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/deployment/MacOS/MacOSBundleInfo.plist.in
+  )
+  add_custom_command (TARGET ${APP_NAME}
+    POST_BUILD 
+    COMMAND "${CMAKE_INSTALL_NAME_TOOL}"
+      "-change" "/usr/local/opt/libsndfile/lib/libsndfile.1.dylib" 
+      "@rpath/libsndfile/libsndfile.1.dylib"
+      "$<TARGET_FILE:${APP_NAME}>" 
+
+    COMMAND "${CMAKE_INSTALL_NAME_TOOL}"
+      "-change" "/usr/local/opt/libvorbis/lib/libvorbis.0.dylib" 
+      "@rpath/libsndfile/libvorbis.0.dylib"
+      "${RESOURCE_PATH}/libsndfile/libsndfile.1.dylib"
+    COMMAND "${CMAKE_INSTALL_NAME_TOOL}"
+      "-change" "/usr/local/opt/flac/lib/libFLAC.8.dylib" 
+      "@rpath/libsndfile/libFLAC.8.dylib"
+      "${RESOURCE_PATH}/libsndfile/libsndfile.1.dylib"
+    COMMAND "${CMAKE_INSTALL_NAME_TOOL}"
+      "-change" "/usr/local/opt/libogg/lib/libogg.0.dylib" 
+      "@rpath/libsndfile/libogg.0.dylib"
+      "${RESOURCE_PATH}/libsndfile/libsndfile.1.dylib"
+    COMMAND "${CMAKE_INSTALL_NAME_TOOL}"
+      "-change" "/usr/local/opt/libvorbis/lib/libvorbisenc.2.dylib" 
+      "@rpath/libsndfile/libvorbisenc.2.dylib"
+      "${RESOURCE_PATH}/libsndfile/libsndfile.1.dylib" 
+
+    COMMAND "${CMAKE_INSTALL_NAME_TOOL}"
+    "-change" "/usr/local/opt/libogg/lib/libogg.0.dylib" 
+    "@rpath/libsndfile/libogg.0.dylib"
+    "${RESOURCE_PATH}/libsndfile/libFLAC.8.dylib"
+
+    COMMAND "${CMAKE_INSTALL_NAME_TOOL}"
+      "-change" "/usr/local/opt/libogg/lib/libogg.0.dylib" 
+      "@rpath/libsndfile/libogg.0.dylib"
+      "${RESOURCE_PATH}/libsndfile/libvorbis.0.dylib"
+
+    COMMAND "${CMAKE_INSTALL_NAME_TOOL}"
+      "-change" "/usr/local/opt/libogg/lib/libogg.0.dylib" 
+      "@rpath/libsndfile/libogg.0.dylib"
+      "${RESOURCE_PATH}/libsndfile/libvorbisenc.2.dylib" 
+    COMMAND "${CMAKE_INSTALL_NAME_TOOL}"
+      "-change" "/usr/local/Cellar/libvorbis/1.3.6/lib/libvorbis.0.dylib" 
+      "@rpath/libsndfile/libvorbis.0.dylib"
+      "${RESOURCE_PATH}/libsndfile/libvorbisenc.2.dylib" 
+    VERBATIM
   )
 
 endif(APPLE)

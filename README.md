@@ -13,7 +13,7 @@ laws.
 
 The application is written in C++ and uses the Allolib framework extensively.
 
-![](CHON.png)
+![](CHONDemoImage.png)
 
 # Building
 
