@@ -81,11 +81,15 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endforeach()
 
   add_executable(${APP_NAME} MACOSX_BUNDLE
-  src/CHON.cpp
-  ${RESOURCE_FILES}
-  ${ICON}
+    src/CHON.cpp
+    ${RESOURCE_FILES}
+    ${ICON}
   )
 endif(APPLE)
+
+if(WIN32)
+  set(ICON ${CMAKE_CURRENT_SOURCE_DIR}/deployment/icons/CHON-windows.rc)
+endif(WIN32)
 
 if(UNIX AND NOT APPLE)
   # path to main source file

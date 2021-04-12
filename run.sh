@@ -10,9 +10,6 @@ if [[ "$THREADS" == "" ]]; then
 fi
 
 (
-  # utilizing cmake's parallel build options
-  # recommended: -j <number of processor cores + 1>
-  # This is supported in cmake >= 3.12 use -- -j5 for older versions
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     cmake --build ./build/release $THREADS
   elif [[ "$OSTYPE" == "darwin"* ]]; then
@@ -29,5 +26,8 @@ if [ ${result} == 0 ]; then
     ./bin/CHON
   elif [[ "$OSTYPE" == "darwin"* ]]; then
     open bin/CHON.app
+  elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    echo "RUN WINDOWS TODO"
+    ./EmissionControl2.exe -DRTAUDIO_API_JACK=1 -DRTMIDI_API_JACK=0
   fi
 fi

@@ -1,7 +1,10 @@
 // To Do:
-// - Allow more variables to be sent by OSC (velocity, potential energy)
-// - add presets saving and loading
-// - Implement "kuramoto mode"
+// FEATURES:
+//    - Allow more variables to be sent by OSC (velocity, potential energy)
+//    - add presets saving and loading
+//    - Implement "kuramoto mode"
+//    - Implement audio input to drive CHON
+//    - Implement collisions
 
 #include "CHON.hpp"
 
