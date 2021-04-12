@@ -9,6 +9,19 @@ project(${APP_NAME} VERSION 1.0
 # add allolib as a subdirectory to the project
 add_subdirectory(allolib)
 
+# if (NOT TARGET al_soundfile)
+#   message(FATAL_ERROR "al_soundfile not built. Likely libsndfile not found")
+# endif()
+
+# Hacky (and fragile way) to move libsndfile-1.dll to bin/Resources
+if(WIN32)
+  get_filename_component(sndfile_dir ${SNDFILE_LIBRARY} DIRECTORY)
+  set(${sndfile_dir}/../bin/libsndfile-1.dll)
+  message("WINDOWS: Attempting to copy sndfile dll to bin/")
+  file(COPY ${sndfile_dir}/../bin/libsndfile-1.dll
+        DESTINATION ${CMAKE_SOURCE_DIR}/bin)
+endif()
+
 # Linux library needed for native file dialog.
 if(UNIX AND NOT APPLE)
   set(LINUX TRUE)
@@ -115,8 +128,8 @@ if(UNIX AND NOT APPLE)
   add_executable(${APP_NAME} src/CHON.cpp)
 endif()
 
-target_include_directories(${APP_NAME} PRIVATE 
-${CMAKE_SOURCE_DIR}/allolib
+target_include_directories(${APP_NAME} PRIVATE
+  ${CMAKE_SOURCE_DIR}/allolib
 )
 
 if (EXISTS ${CMAKE_CURRENT_LIST_DIR}/al_ext)
