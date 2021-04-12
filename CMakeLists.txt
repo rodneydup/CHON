@@ -30,6 +30,10 @@ target_link_libraries(chonLib PUBLIC
   al 
 )
 
+target_include_directories()(chonLib PUBLIC 
+  ${CMAKE_SOURCE_DIR}/allolib
+)
+
 set_target_properties(chonLib PROPERTIES
   CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON
@@ -86,6 +90,11 @@ endforeach()
     ${ICON}
   )
 endif(APPLE)
+
+target_include_directories(${APP_NAME} PRIVATE 
+${CMAKE_SOURCE_DIR}/allolib
+
+)
 
 if(WIN32)
   set(ICON ${CMAKE_CURRENT_SOURCE_DIR}/deployment/icons/CHON-windows.rc)
