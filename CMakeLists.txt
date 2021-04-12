@@ -9,10 +9,20 @@ project(${APP_NAME} VERSION 1.0
 # add allolib as a subdirectory to the project
 add_subdirectory(allolib)
 
+# Linux library needed for native file dialog.
+if(UNIX AND NOT APPLE)
+  set(LINUX TRUE)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+  include_directories(${GTK3_INCLUDE_DIRS})
+  link_directories(${GTK3_LIBRARY_DIRS})
+endif()
+
 set(includes
 src/calculations.hpp
 src/structs.hpp
 src/CHON.hpp
+src/Roboto-Medium.hpp
 )
 
 set(srcs
@@ -30,7 +40,7 @@ target_link_libraries(chonLib PUBLIC
   al 
 )
 
-target_include_directories()(chonLib PUBLIC 
+target_include_directories(chonLib PUBLIC 
   ${CMAKE_SOURCE_DIR}/allolib
 )
 
@@ -91,11 +101,6 @@ endforeach()
   )
 endif(APPLE)
 
-target_include_directories(${APP_NAME} PRIVATE 
-${CMAKE_SOURCE_DIR}/allolib
-
-)
-
 if(WIN32)
   set(ICON ${CMAKE_CURRENT_SOURCE_DIR}/deployment/icons/CHON-windows.rc)
   # path to main source file
@@ -109,6 +114,10 @@ if(UNIX AND NOT APPLE)
   # path to main source file
   add_executable(${APP_NAME} src/CHON.cpp)
 endif()
+
+target_include_directories(${APP_NAME} PRIVATE 
+${CMAKE_SOURCE_DIR}/allolib
+)
 
 if (EXISTS ${CMAKE_CURRENT_LIST_DIR}/al_ext)
   message("Buiding extensions in al_ext")
@@ -137,6 +146,11 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
 # replace ${PATH_TO_LIB_FILE} before linking other libraries
 # target_link_libraries(${APP_NAME} PRIVATE ${PATH_TO_LIB_FILE})
+
+# Link windows libraries.
+if(WIN32)
+  target_link_libraries(ecLib PUBLIC comctl32)
+endif()
 
 target_link_libraries(${APP_NAME} PUBLIC chonLib ${LIBRARIES})
 
