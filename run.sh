@@ -28,6 +28,6 @@ if [ ${result} == 0 ]; then
     open bin/CHON.app
   elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
     echo "RUN WINDOWS TODO"
-    ./EmissionControl2.exe -DRTAUDIO_API_JACK=1 -DRTMIDI_API_JACK=0
+    ./bin/CHON.exe -DRTAUDIO_API_JACK=1 -DRTMIDI_API_JACK=0
   fi
 fi
