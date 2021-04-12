@@ -40,7 +40,7 @@ target_link_libraries(chonLib PUBLIC
   al 
 )
 
-target_include_directories(chonLib PUBLIC 
+target_include_directories(chonLib PRIVATE 
   ${CMAKE_SOURCE_DIR}/allolib
 )
 
@@ -149,7 +149,7 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
 # Link windows libraries.
 if(WIN32)
-  target_link_libraries(ecLib PUBLIC comctl32)
+  target_link_libraries(chonLib PUBLIC comctl32)
 endif()
 
 target_link_libraries(${APP_NAME} PUBLIC chonLib ${LIBRARIES})
