@@ -89,6 +89,11 @@ endif(APPLE)
 
 if(WIN32)
   set(ICON ${CMAKE_CURRENT_SOURCE_DIR}/deployment/icons/CHON-windows.rc)
+  # path to main source file
+  add_executable(${APP_NAME} 
+    src/CHON.cpp
+    ${ICON}
+  )
 endif(WIN32)
 
 if(UNIX AND NOT APPLE)
