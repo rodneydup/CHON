@@ -11,12 +11,12 @@ fi
 
 (
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    cmake --build ./build/release $THREADS
+    cmake --build ./build/release --config Release $THREADS
   elif [[ "$OSTYPE" == "darwin"* ]]; then
-    cmake --build ./build/release $THREADS
+    cmake --build ./build/release --config Release $THREADS
   elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
     echo "BUILD WINDOWS TODO"
-    cmake --build ./build/release $THREADS
+    cmake --build ./build/release --config Release $THREADS
   fi
 )
 
