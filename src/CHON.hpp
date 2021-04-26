@@ -194,28 +194,46 @@ class CHON : public App {
   ImFont *bodyFont;
   ImFont *titleFont;
 
-  std::string currentAudioDevice;
-  void setAudioDevice(std::string audio_device) { currentAudioDevice = audio_device; }
+  std::string currentAudioDeviceOut;
+  std::string currentAudioDeviceIn;
 
   static const int MAX_AUDIO_OUTS = 2;
-  std::array<unsigned int, MAX_AUDIO_OUTS> AudioChanIndex;
+  static const int MAX_AUDIO_INS = 2;
+
+  std::array<unsigned int, MAX_AUDIO_OUTS> AudioChanIndexOut;
+  std::array<unsigned int, MAX_AUDIO_INS> AudioChanIndexIn;
+
   bool isPaused = false;
   const int SAMPLE_RATE = 48000;
   double globalSamplingRate = SAMPLE_RATE;
   const int BLOCK_SIZE = 1024;
 
-  int getLeadChannel() const { return AudioChanIndex[0]; }
+  int getLeadChannelOut() const { return AudioChanIndexOut[0]; }
+  int getLeadChannelIn() const { return AudioChanIndexIn[0]; }
 
   void setOutChannels(int lead_channel, int max_possible_channels) {
-    AudioChanIndex[0] = lead_channel;
+    AudioChanIndexOut[0] = lead_channel;
     if (max_possible_channels == 1) {
       for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
-        AudioChanIndex[i] = lead_channel;
+        AudioChanIndexOut[i] = lead_channel;
       }
     } else {
       // assert(lead_channel + (consts::MAX_AUDIO_OUTS) < max_possible_channels);
       for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
-        AudioChanIndex[i] = lead_channel + i;
+        AudioChanIndexOut[i] = lead_channel + i;
+      }
+    }
+  }
+  void setInChannels(int lead_channel, int max_possible_channels) {
+    AudioChanIndexIn[0] = lead_channel;
+    if (max_possible_channels == 1) {
+      for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
+        AudioChanIndexIn[i] = lead_channel;
+      }
+    } else {
+      // assert(lead_channel + (consts::MAX_AUDIO_OUTS) < max_possible_channels);
+      for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
+        AudioChanIndexIn[i] = lead_channel + i;
       }
     }
   }

@@ -663,11 +663,15 @@ void CHON::drawAudioIO(AudioIO *io) {
   struct AudioIOState {
     int currentSr = 1;
     int currentBufSize = 3;
-    int currentDevice = 0;
+    int currentDeviceOut = 0;
+    int currentDeviceIn = 0;
     int currentOut = 1;
+    int currentIn = 1;
     int currentMaxOut;
+    int currentMaxIn;
     std::vector<std::string> devices;
   };
+
   auto updateOutDevices = [&](AudioIOState &state) {
     state.devices.clear();
     int numDevices = AudioDevice::numDevices();
@@ -676,29 +680,51 @@ void CHON::drawAudioIO(AudioIO *io) {
       if (!AudioDevice(i).hasOutput()) continue;
 
       state.devices.push_back(AudioDevice(i).name());
-      if (currentAudioDevice == AudioDevice(i).name()) {
-        state.currentDevice = dev_out_index;
-        state.currentOut = getLeadChannel() + 1;
+      if (currentAudioDeviceOut == AudioDevice(i).name()) {
+        state.currentDeviceOut = dev_out_index;
+        state.currentOut = getLeadChannelOut() + 1;
         state.currentMaxOut = AudioDevice(i).channelsOutMax();
       }
       dev_out_index++;
     }
   };
+
+  auto updateInDevices = [&](AudioIOState &state) {
+    state.devices.clear();
+    int numDevices = AudioDevice::numDevices();
+    int dev_in_index = 0;
+    for (int i = 0; i < numDevices; i++) {
+      if (!AudioDevice(i).hasInput()) continue;
+
+      state.devices.push_back(AudioDevice(i).name());
+      if (currentAudioDeviceIn == AudioDevice(i).name()) {
+        state.currentDeviceIn = dev_in_index;
+        state.currentIn = getLeadChannelIn() + 1;
+        state.currentMaxIn = AudioDevice(i).channelsInMax();
+      }
+      dev_in_index++;
+    }
+  };
+
   static std::map<AudioIO *, AudioIOState> stateMap;
   if (stateMap.find(io) == stateMap.end()) {
     stateMap[io] = AudioIOState();
     updateOutDevices(stateMap[io]);
+    updateInDevices(stateMap[io]);
   }
   AudioIOState &state = stateMap[io];
   ImGui::PushID(std::to_string((unsigned long)io).c_str());
 
   if (io->isOpen()) {
     std::string text;
-    text += "Device: " + state.devices.at(state.currentDevice);
+    text += "Output Device: " + state.devices.at(state.currentDeviceOut);
+    text += "\nInput Device: " + state.devices.at(state.currentDeviceIn);
     text += "\nSampling Rate: " + std::to_string(int(io->fps()));
     text += "\nBuffer Size: " + std::to_string(io->framesPerBuffer());
     text += "\nOutput Channels: " + std::to_string(state.currentOut) + ", " +
             std::to_string(state.currentOut + 1);
+    text += "\nInput Channels: " + std::to_string(state.currentIn) + ", " +
+            std::to_string(state.currentIn + 1);
     ImGui::Text("%s", text.c_str());
     if (ImGui::Button("Stop")) {
       isPaused = true;
@@ -709,20 +735,23 @@ void CHON::drawAudioIO(AudioIO *io) {
   } else {
     if (ImGui::Button("Update Devices")) {
       updateOutDevices(state);
+      updateInDevices(state);
     }
+
     ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
-    if (ImGui::Combo("Device", &state.currentDevice, ParameterGUI::vector_getter,
+    if (ImGui::Combo("Output Device", &state.currentDeviceOut, ParameterGUI::vector_getter,
                      static_cast<void *>(&state.devices), state.devices.size())) {
       state.currentMaxOut =
-        AudioDevice(state.devices.at(state.currentDevice), AudioDevice::OUTPUT).channelsOutMax();
+        AudioDevice(state.devices.at(state.currentDeviceOut), AudioDevice::OUTPUT).channelsOutMax();
     }
-    std::string chan_label = "Select Outs: (Up to " + std::to_string(state.currentMaxOut) + " )";
-    ImGui::Text(chan_label.c_str(), "%s");
+    std::string chan_label_out =
+      "Select Outs: (Up to " + std::to_string(state.currentMaxOut) + " )";
+    ImGui::Text(chan_label_out.c_str(), "%s");
     // ImGui::SameLine();
     // ImGui::Checkbox("Mono/Stereo", &isStereo);
     // ImGui::Indent(25 * fontScale);
     // ImGui::PushItemWidth(50 * fontScale);
-    ImGui::DragInt("Chan 1", &state.currentOut, 1.0f, 0, state.currentMaxOut - 1, "%d", 1 << 4);
+    ImGui::DragInt("Chan 1 out", &state.currentOut, 1.0f, 0, state.currentMaxOut - 1, "%d", 1 << 4);
 
     if (state.currentOut > state.currentMaxOut - 1) state.currentOut = state.currentMaxOut - 1;
     if (state.currentOut < 1) state.currentOut = 1;
@@ -739,6 +768,35 @@ void CHON::drawAudioIO(AudioIO *io) {
     // ImGui::Unindent(25 * fontScale);
     ImGui::PopItemWidth();
 
+    ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
+    if (ImGui::Combo("Input Device", &state.currentDeviceIn, ParameterGUI::vector_getter,
+                     static_cast<void *>(&state.devices), state.devices.size())) {
+      state.currentMaxIn =
+        AudioDevice(state.devices.at(state.currentDeviceIn), AudioDevice::INPUT).channelsInMax();
+    }
+    std::string chan_label_in = "Select Ins: (Up to " + std::to_string(state.currentMaxIn) + " )";
+    ImGui::Text(chan_label_in.c_str(), "%s");
+    // ImGui::SameLine();
+    // ImGui::Checkbox("Mono/Stereo", &isStereo);
+    // ImGui::Indent(25 * fontScale);
+    // ImGui::PushItemWidth(50 * fontScale);
+    ImGui::DragInt("Chan 1 in", &state.currentIn, 1.0f, 0, state.currentMaxIn - 1, "%d", 1 << 4);
+
+    if (state.currentIn > state.currentMaxIn - 1) state.currentIn = state.currentMaxIn - 1;
+    if (state.currentIn < 1) state.currentIn = 1;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+    for (int i = 1; i < MAX_AUDIO_INS; i++) {
+      ImGui::SameLine();
+      int temp = state.currentIn + i;
+      std::string channel = "Chan " + std::to_string(i + 1);
+      ImGui::DragInt(channel.c_str(), &temp, 1.0f, 0, state.currentMaxIn, "%d", 1 << 4);
+    }
+    ImGui::PopStyleVar();
+
+    // ImGui::Unindent(25 * fontScale);
+    ImGui::PopItemWidth();
+
     std::vector<std::string> samplingRates{"44100", "48000", "88200", "96000"};
     ImGui::Combo("Sampling Rate", &state.currentSr, ParameterGUI::vector_getter,
                  static_cast<void *>(&samplingRates), samplingRates.size());
@@ -747,9 +805,12 @@ void CHON::drawAudioIO(AudioIO *io) {
       globalSamplingRate = std::stof(samplingRates[state.currentSr]);
       io->framesPerSecond(globalSamplingRate);
       io->framesPerBuffer(BLOCK_SIZE);
-      io->device(AudioDevice(state.devices.at(state.currentDevice), AudioDevice::OUTPUT));
-      currentAudioDevice = state.devices.at(state.currentDevice);
+      io->deviceOut(AudioDevice(state.devices.at(state.currentDeviceOut), AudioDevice::OUTPUT));
+      currentAudioDeviceOut = state.devices.at(state.currentDeviceOut);
       setOutChannels(state.currentOut - 1, state.currentMaxOut);
+      io->deviceIn(AudioDevice(state.devices.at(state.currentDeviceIn), AudioDevice::INPUT));
+      currentAudioDeviceIn = state.devices.at(state.currentDeviceIn);
+      setInChannels(state.currentIn - 1, state.currentMaxIn);
       io->open();
       io->start();
       isPaused = false;
