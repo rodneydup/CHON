@@ -5,6 +5,10 @@
 //    - Implement "kuramoto mode"
 //    - Implement audio input to drive CHON
 //    - Implement collisions
+//    - Send number of particles via OSC when changed
+//    - Accept OSC in to control some parameters
+//    - FFT of input for mapping to particle motion
+//    - Pass RMS amplitude out via OSC
 
 #include "CHON.hpp"
 
@@ -307,7 +311,8 @@ void CHON::onDraw(Graphics &g) {  // Draw function
 
   if (drawGUI) {
     imguiBeginFrame();
-    int yposition = 0;
+
+    int yposition = 22;
     ImGui::PushFont(titleFont);
     ParameterGUI::beginPanel("Display", 0, yposition, flags);
     ImGui::PopFont();
@@ -406,6 +411,15 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::endPanel();
 
     ImGui::PushFont(titleFont);
+    ParameterGUI::beginPanel("Audio", 0, yposition, flags);
+    ImGui::PopFont();
+    ImGui::PushFont(bodyFont);
+    drawAudioIO(&audioIO());
+    yposition += ImGui::GetWindowHeight();
+    ImGui::PopFont();
+    ParameterGUI::endPanel();
+
+    ImGui::PushFont(titleFont);
     ParameterGUI::beginPanel("OSC", 0, yposition, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
@@ -420,6 +434,16 @@ void CHON::onDraw(Graphics &g) {  // Draw function
                          ImGuiInputTextFlags_EnterReturnsTrue))
       resetOSC();
     if (ImGui::InputInt("Port", &port, ImGuiInputTextFlags_EnterReturnsTrue)) resetOSC();
+    if (ImGui::CollapsingHeader("Message Syntax")) {
+      ImGui::Text(
+        "OSC messages are formatted as follows:\n"
+        "FirstArg/SecondArg/ Value\n\n"
+        "FirstArg:\n"
+        "dispX, dispY, or dispZ \n\n"
+        "SecondArg:\n"
+        "Integer representing the particle number\n\n"
+        "*Note that particles are numbered beginning from 0\n\n");
+    }
     ImGui::PopFont();
 
     ParameterGUI::endPanel();
@@ -491,6 +515,8 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
       io.out(1) = s;
     }
   }
+
+  io.in(0);
 }
 
 void CHON::onResize(int width, int height) {
@@ -626,6 +652,106 @@ bool CHON::onKeyUp(Keyboard const &k) {
       break;
   }
   return true;
+}
+
+void CHON::drawAudioIO(AudioIO *io) {
+  struct AudioIOState {
+    int currentSr = 1;
+    int currentBufSize = 3;
+    int currentDevice = 0;
+    int currentOut = 1;
+    int currentMaxOut;
+    std::vector<std::string> devices;
+  };
+  auto updateOutDevices = [&](AudioIOState &state) {
+    state.devices.clear();
+    int numDevices = AudioDevice::numDevices();
+    int dev_out_index = 0;
+    for (int i = 0; i < numDevices; i++) {
+      if (!AudioDevice(i).hasOutput()) continue;
+
+      state.devices.push_back(AudioDevice(i).name());
+      if (currentAudioDevice == AudioDevice(i).name()) {
+        state.currentDevice = dev_out_index;
+        state.currentOut = getLeadChannel() + 1;
+        state.currentMaxOut = AudioDevice(i).channelsOutMax();
+      }
+      dev_out_index++;
+    }
+  };
+  static std::map<AudioIO *, AudioIOState> stateMap;
+  if (stateMap.find(io) == stateMap.end()) {
+    stateMap[io] = AudioIOState();
+    updateOutDevices(stateMap[io]);
+  }
+  AudioIOState &state = stateMap[io];
+  ImGui::PushID(std::to_string((unsigned long)io).c_str());
+
+  if (io->isOpen()) {
+    std::string text;
+    text += "Device: " + state.devices.at(state.currentDevice);
+    text += "\nSampling Rate: " + std::to_string(int(io->fps()));
+    text += "\nBuffer Size: " + std::to_string(io->framesPerBuffer());
+    text += "\nOutput Channels: " + std::to_string(state.currentOut) + ", " +
+            std::to_string(state.currentOut + 1);
+    ImGui::Text("%s", text.c_str());
+    if (ImGui::Button("Stop")) {
+      isPaused = true;
+      io->stop();
+      io->close();
+      state.currentSr = getSampleRateIndex();
+    }
+  } else {
+    if (ImGui::Button("Update Devices")) {
+      updateOutDevices(state);
+    }
+    ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
+    if (ImGui::Combo("Device", &state.currentDevice, ParameterGUI::vector_getter,
+                     static_cast<void *>(&state.devices), state.devices.size())) {
+      state.currentMaxOut =
+        AudioDevice(state.devices.at(state.currentDevice), AudioDevice::OUTPUT).channelsOutMax();
+    }
+    std::string chan_label = "Select Outs: (Up to " + std::to_string(state.currentMaxOut) + " )";
+    ImGui::Text(chan_label.c_str(), "%s");
+    // ImGui::SameLine();
+    // ImGui::Checkbox("Mono/Stereo", &isStereo);
+    // ImGui::Indent(25 * fontScale);
+    // ImGui::PushItemWidth(50 * fontScale);
+    ImGui::DragInt("Chan 1", &state.currentOut, 1.0f, 0, state.currentMaxOut - 1, "%d", 1 << 4);
+
+    if (state.currentOut > state.currentMaxOut - 1) state.currentOut = state.currentMaxOut - 1;
+    if (state.currentOut < 1) state.currentOut = 1;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+    for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
+      ImGui::SameLine();
+      int temp = state.currentOut + i;
+      std::string channel = "Chan " + std::to_string(i + 1);
+      ImGui::DragInt(channel.c_str(), &temp, 1.0f, 0, state.currentMaxOut, "%d", 1 << 4);
+    }
+    ImGui::PopStyleVar();
+
+    // ImGui::Unindent(25 * fontScale);
+    ImGui::PopItemWidth();
+
+    std::vector<std::string> samplingRates{"44100", "48000", "88200", "96000"};
+    ImGui::Combo("Sampling Rate", &state.currentSr, ParameterGUI::vector_getter,
+                 static_cast<void *>(&samplingRates), samplingRates.size());
+    ImGui::PopItemWidth();
+    if (ImGui::Button("Start")) {
+      globalSamplingRate = std::stof(samplingRates[state.currentSr]);
+      io->framesPerSecond(globalSamplingRate);
+      io->framesPerBuffer(BLOCK_SIZE);
+      io->device(AudioDevice(state.devices.at(state.currentDevice), AudioDevice::OUTPUT));
+      currentAudioDevice = state.devices.at(state.currentDevice);
+      setOutChannels(state.currentOut - 1, state.currentMaxOut);
+      io->open();
+      io->start();
+      isPaused = false;
+    }
+    ImGui::SameLine();
+  }
+  ImGui::PopID();
 }
 
 int main() {

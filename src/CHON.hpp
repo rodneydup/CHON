@@ -30,6 +30,8 @@ class CHON : public App {
    */
   virtual void onSound(al::AudioIOData &io) override;
 
+  void drawAudioIO(al::AudioIO *io);
+
   virtual void onAnimate(double dt) override;
 
   /**
@@ -191,4 +193,45 @@ class CHON : public App {
                            ImGuiWindowFlags_AlwaysAutoResize;
   ImFont *bodyFont;
   ImFont *titleFont;
+
+  std::string currentAudioDevice;
+  void setAudioDevice(std::string audio_device) { currentAudioDevice = audio_device; }
+
+  static const int MAX_AUDIO_OUTS = 2;
+  std::array<unsigned int, MAX_AUDIO_OUTS> AudioChanIndex;
+  bool isPaused = false;
+  const int SAMPLE_RATE = 48000;
+  double globalSamplingRate = SAMPLE_RATE;
+  const int BLOCK_SIZE = 1024;
+
+  int getLeadChannel() const { return AudioChanIndex[0]; }
+
+  void setOutChannels(int lead_channel, int max_possible_channels) {
+    AudioChanIndex[0] = lead_channel;
+    if (max_possible_channels == 1) {
+      for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
+        AudioChanIndex[i] = lead_channel;
+      }
+    } else {
+      // assert(lead_channel + (consts::MAX_AUDIO_OUTS) < max_possible_channels);
+      for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
+        AudioChanIndex[i] = lead_channel + i;
+      }
+    }
+  }
+  int getSampleRateIndex() {
+    unsigned s_r = (unsigned)globalSamplingRate;
+    switch (s_r) {
+      case 44100:
+        return 0;
+      case 48000:
+        return 1;
+      case 88200:
+        return 2;
+      case 96000:
+        return 3;
+      default:
+        return 0;
+    }
+  }
 };
