@@ -190,7 +190,7 @@ class CHON : public App {
 
   ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
                            ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings |
-                           ImGuiWindowFlags_AlwaysAutoResize;
+                           ImGuiWindowFlags_AlwaysAutoResize | ImGuiCond_Once;
   ImFont *bodyFont;
   ImFont *titleFont;
 

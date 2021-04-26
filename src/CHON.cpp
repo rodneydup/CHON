@@ -312,7 +312,8 @@ void CHON::onDraw(Graphics &g) {  // Draw function
   if (drawGUI) {
     imguiBeginFrame();
 
-    int yposition = 22;
+    int yposition = 0;
+    ImGui::SetNextWindowCollapsed(1, ImGuiCond_Once);
     ImGui::PushFont(titleFont);
     ParameterGUI::beginPanel("Display", 0, yposition, flags);
     ImGui::PopFont();
@@ -331,6 +332,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     yposition += ImGui::GetWindowHeight();
     ParameterGUI::endPanel();
 
+    ImGui::SetNextWindowCollapsed(1, ImGuiCond_Once);
     ImGui::PushFont(titleFont);
     ParameterGUI::beginPanel("Physics", 0, yposition, flags);
     ImGui::PopFont();
@@ -368,6 +370,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     yposition += ImGui::GetWindowHeight();
     ParameterGUI::endPanel();
 
+    ImGui::SetNextWindowCollapsed(1, ImGuiCond_Once);
     ImGui::PushFont(titleFont);
     ParameterGUI::beginPanel("Synthesis", 0, yposition, flags);
     ImGui::PopFont();
@@ -410,6 +413,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     yposition += ImGui::GetWindowHeight();
     ParameterGUI::endPanel();
 
+    ImGui::SetNextWindowCollapsed(1, ImGuiCond_Once);
     ImGui::PushFont(titleFont);
     ParameterGUI::beginPanel("Audio", 0, yposition, flags);
     ImGui::PopFont();
@@ -419,6 +423,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ImGui::PopFont();
     ParameterGUI::endPanel();
 
+    ImGui::SetNextWindowCollapsed(1, ImGuiCond_Once);
     ImGui::PushFont(titleFont);
     ParameterGUI::beginPanel("OSC", 0, yposition, flags);
     ImGui::PopFont();
