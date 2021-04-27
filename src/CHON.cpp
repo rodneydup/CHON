@@ -5,7 +5,6 @@
 //    - Implement "kuramoto mode"
 //    - Implement audio input to drive CHON
 //    - Implement collisions
-//    - Send number of particles via OSC when changed
 //    - Accept OSC in to control some parameters
 //    - FFT of input for mapping to particle motion
 //    - Pass RMS amplitude out via OSC
@@ -175,7 +174,7 @@ void CHON::chonReset() {
     // Register its parameter bundle with the ControlGUI
     *ySpringGUI << newSpring->bundle;
   }
-
+  client.send("/Nparticles/", nX * nY);
   resetLock.unlock();
 }
 
