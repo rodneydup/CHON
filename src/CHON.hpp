@@ -96,6 +96,9 @@ class CHON : public App {
   gam::NoiseWhite<> tick;
   bool drawGUI = 1;
 
+  /*
+  GUI variables
+  */
   std::unique_ptr<BundleGUIManager> xSpringGUI;
   std::unique_ptr<BundleGUIManager> ySpringGUI;
   Parameter mAll{"Mass", "physics", 1.0f, "", 1.0f, 100.0f};  // Master mass
@@ -136,6 +139,19 @@ class CHON : public App {
   ParameterBool reverbOn{"Reverb On", "Synthesis", 0};               // Reverb
   Parameter reverbTail{"Tail", "Synthesis", 0.15f, "", 0.0f, 1.0f};  // Reverb decay time
 
+  ParameterInt RMSSize{"RMS Samples", "Audio", 2048, 512, 4096};
+  ParameterBool RMSInputOn{"RMS Input", "Audio", 0};
+  ParameterBool RMSStereo{"RMS Stereo", "Audio", 0};
+  ParameterInt RMSParticleX{"RMS Particle X", "Audio", 1, 1, nX};
+  ParameterInt RMSParticleY{"RMS Particle Y", "Audio", 1, 1, nY};
+
+  ParameterMenu RMSAxis{"RMS Axis"};
+  Parameter RMSScale{"RMS Scaling", "Audio", 1.0f, 0.1f, 2.0f};
+  Parameter RMSThreshold{"RMS Threshold", "Audio", 1.0f, 0.0f, 2.0f};
+
+  /*
+  Scales
+  */
   std::vector<float> majScale{1.000000,  1.125000,  1.250000,  1.333333,  1.500000,  1.666667,
                               1.875000,  2.000000,  2.250000,  2.500000,  2.666667,  3.000000,
                               3.333333,  3.750000,  4.000000,  4.500000,  5.000000,  5.333333,
@@ -174,6 +190,9 @@ class CHON : public App {
     15.000000, 16.200000, 17.640000, 19.285714, 21.000000, 22.680000, 25.000000, 27.000000};
   std::vector<float> *scale = &pentScale;
 
+  /*
+  OSC
+  */
   int port = 16447;             // osc port
   char addr[10] = "127.0.0.1";  // ip address
   osc::Send client;             // create an osc client
@@ -194,6 +213,9 @@ class CHON : public App {
   ImFont *bodyFont;
   ImFont *titleFont;
 
+  /*
+  Audio IO
+  */
   std::string currentAudioDeviceOut;
   std::string currentAudioDeviceIn;
 
@@ -252,4 +274,11 @@ class CHON : public App {
         return 0;
     }
   }
+
+  // Audio input buffers
+  int inBufferSize = 4096;
+  RingBuffer inLeft{inBufferSize};
+  RingBuffer inRight{inBufferSize};
+  float RMSLeft = 0;
+  float RMSRight = 0;
 };

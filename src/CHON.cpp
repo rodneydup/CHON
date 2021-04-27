@@ -3,7 +3,6 @@
 //    - Allow more variables to be sent by OSC (velocity, potential energy)
 //    - add presets saving and loading
 //    - Implement "kuramoto mode"
-//    - Implement audio input to drive CHON
 //    - Implement collisions
 //    - Accept OSC in to control some parameters
 //    - FFT of input for mapping to particle motion
@@ -65,6 +64,7 @@ void CHON::onInit() {  // Called on app start
   amAxis.setElements({"x", "y", "z"});
   bellAxis.setElements({"x", "y", "z"});
   bellScale.setElements({"Pentatonic", "Major", "Chromatic", "Harmonics", "Bohlen-Pierce"});
+  RMSAxis.setElements({"x", "y", "z"});
 
   bellScale.registerChangeCallback([&](int tuning) {
     switch (tuning) {
@@ -174,6 +174,8 @@ void CHON::chonReset() {
     // Register its parameter bundle with the ControlGUI
     *ySpringGUI << newSpring->bundle;
   }
+  RMSParticleX.max(nX);
+  RMSParticleY.max(nY);
   client.send("/Nparticles/", nX * nY);
   resetLock.unlock();
 }
@@ -187,10 +189,10 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
   w = width();
   h = height();
 
+  /// wait... why did I do this? Do I need to do this?
   for (int i = 0; i < xSprings.size(); i++) {
     kX[i] = xSprings[i]->k;
   }
-
   for (int i = 0; i < ySprings.size(); i++) {
     kY[i] = ySprings[i]->k;
   }
@@ -200,6 +202,12 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
   freedom[2] = zFree;
 
   if (!pause) {
+    if (RMSInputOn) {
+      RMSLeft = inLeft.getRMS(RMSSize);
+      RMSRight = inRight.getRMS(RMSSize);
+      if (RMSLeft > RMSThreshold)
+        particle[RMSParticleX][RMSParticleY].acceleration[RMSAxis] += RMSLeft * RMSScale;
+    }
     updateVelocities(particle, springLength, freedom, kX, kY, mAll, b, 60);
     for (int x = 1; x <= nX; x++)
       for (int y = 1; y <= nY; y++) {  // animate stuff
@@ -216,7 +224,7 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
                                          0);  // move previous graph data left
           if (particle[x][y].graph.vertices().size() > w)
             particle[x][y].graph.vertices().erase(
-              particle[x][y].graph.vertices().begin());               // erase left hand graph data
+              particle[x][y].graph.vertices().begin());               // erase left-edge graph data
           float graphY = h * particle[x][y].displacement[graphAxis];  // calculate new phase value
           graphY /= springLength * 2;
           graphY += (h * ((graphSpread * x / (nX + 1)) +
@@ -417,7 +425,18 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::beginPanel("Audio", 0, yposition, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
-    drawAudioIO(&audioIO());
+    if (ImGui::CollapsingHeader("Audio IO Settings")) {
+      drawAudioIO(&audioIO());
+    }
+    if (ImGui::CollapsingHeader("Input")) {
+      ParameterGUI::drawParameterBool(&RMSInputOn);
+      ParameterGUI::drawParameterInt(&RMSSize, "");
+      ParameterGUI::drawParameterInt(&RMSParticleX, "");
+      ParameterGUI::drawParameterInt(&RMSParticleY, "");
+      ParameterGUI::drawMenu(&RMSAxis);
+      ParameterGUI::drawParameter(&RMSScale);
+      ParameterGUI::drawParameter(&RMSThreshold);
+    }
     yposition += ImGui::GetWindowHeight();
     ImGui::PopFont();
     ParameterGUI::endPanel();
@@ -445,8 +464,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
         "FirstArg:\n"
         "dispX, dispY, or dispZ \n\n"
         "SecondArg:\n"
-        "Integer representing the particle number\n\n"
-        "*Note that particles are numbered beginning from 0\n\n");
+        "Integer representing the particle number");
     }
     ImGui::PopFont();
 
@@ -518,9 +536,10 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
       io.out(0) = s;
       io.out(1) = s;
     }
+    // Add samples to input ringbuffers (squared in advance for RMS calculations)
+    inLeft.push_back(io.in(0));
+    inRight.push_back(io.in(1));
   }
-
-  io.in(0);
 }
 
 void CHON::onResize(int width, int height) {

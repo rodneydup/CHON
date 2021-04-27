@@ -25,10 +25,7 @@ void updateVelocities(std::vector<std::vector<Particle>> &particle, double sprin
                       float b, int step) {
   int NX = particle.size();
   int NY = particle[0].size();
-  for (int x = 0; x < NX; x++)  // set all acceleration to zero
-    for (int y = 0; y < NY; y++) {
-      for (int j = 0; j < 3; j++) particle[x][y].acceleration[j] = 0;
-    }
+
   for (int y = 0; y < NY - 1; y++)
     for (int x = 0; x < NX - 1; x++) {
       std::array<double, 3> forcesX =
@@ -52,6 +49,11 @@ void updateVelocities(std::vector<std::vector<Particle>> &particle, double sprin
         particle[x][y].velocity[j] +=
           particle[x][y].acceleration[j] / step;  // update velocity dividing by frame rate
       }
+    }
+
+  for (int x = 0; x < NX; x++)  // set all acceleration to zero
+    for (int y = 0; y < NY; y++) {
+      for (int j = 0; j < 3; j++) particle[x][y].acceleration[j] = 0;
     }
 }
 
