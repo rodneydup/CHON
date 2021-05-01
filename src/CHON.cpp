@@ -64,7 +64,9 @@ void CHON::onInit() {  // Called on app start
   amAxis.setElements({"x", "y", "z"});
   bellAxis.setElements({"x", "y", "z"});
   bellScale.setElements({"Pentatonic", "Major", "Chromatic", "Harmonics", "Bohlen-Pierce"});
-  RMSAxis.setElements({"x", "y", "z"});
+  axisLeft.setElements({"x", "y", "z"});
+  axisRight.setElements({"x", "y", "z"});
+  inputMode.setElements({"Peak", "RMS", "FFT"});
 
   bellScale.registerChangeCallback([&](int tuning) {
     switch (tuning) {
@@ -174,8 +176,12 @@ void CHON::chonReset() {
     // Register its parameter bundle with the ControlGUI
     *ySpringGUI << newSpring->bundle;
   }
-  RMSParticleX.max(nX);
-  RMSParticleY.max(nY);
+
+  particleXLeft.max(nX);
+  particleYLeft.max(nY);
+  particleXRight.max(nX);
+  particleYRight.max(nY);
+
   client.send("/Nparticles/", nX * nY);
   resetLock.unlock();
 }
@@ -202,12 +208,26 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
   freedom[2] = zFree;
 
   if (!pause) {
-    if (RMSInputOn) {
-      RMSLeft = inLeft.getRMS(RMSSize);
-      RMSRight = inRight.getRMS(RMSSize);
-      if (RMSLeft > RMSThreshold)
-        particle[RMSParticleX][RMSParticleY].acceleration[RMSAxis] += RMSLeft * RMSScale;
+    if (inputMode == 0) {
+      driveForceLeft = inLeft.at(inLeft.getTail());
+      driveForceRight = inRight.at(inRight.getTail());
+    } else if (inputMode == 1) {
+      driveForceLeft = inLeft.getRMS(rmsSize);
+      driveForceRight = inRight.getRMS(rmsSize);
     }
+    if (stereoSplit) {
+      if (driveForceLeft > inputThreshold)
+        particle[particleXLeft][particleYLeft].acceleration[axisLeft] +=
+          driveForceLeft * inputScale;
+      if (driveForceRight > inputThreshold)
+        particle[particleXRight][particleYRight].acceleration[axisRight] +=
+          driveForceRight * inputScale;
+    } else {
+      if (driveForceLeft > inputThreshold || driveForceRight > inputThreshold)
+        particle[particleXLeft][particleYLeft].acceleration[axisLeft] +=
+          std::max(driveForceLeft, driveForceRight) * inputScale;
+    }
+
     updateVelocities(particle, springLength, freedom, kX, kY, mAll, b, 60);
     for (int x = 1; x <= nX; x++)
       for (int y = 1; y <= nY; y++) {  // animate stuff
@@ -429,13 +449,20 @@ void CHON::onDraw(Graphics &g) {  // Draw function
       drawAudioIO(&audioIO());
     }
     if (ImGui::CollapsingHeader("Input")) {
-      ParameterGUI::drawParameterBool(&RMSInputOn);
-      ParameterGUI::drawParameterInt(&RMSSize, "");
-      ParameterGUI::drawParameterInt(&RMSParticleX, "");
-      ParameterGUI::drawParameterInt(&RMSParticleY, "");
-      ParameterGUI::drawMenu(&RMSAxis);
-      ParameterGUI::drawParameter(&RMSScale);
-      ParameterGUI::drawParameter(&RMSThreshold);
+      ParameterGUI::drawParameterBool(&inputOn);
+      ParameterGUI::drawMenu(&inputMode);
+      ParameterGUI::drawParameterBool(&stereoSplit);
+      ParameterGUI::drawParameterInt(&particleXLeft, "");
+      ParameterGUI::drawParameterInt(&particleYLeft, "");
+      ParameterGUI::drawMenu(&axisLeft);
+      if (stereoSplit) {
+        ParameterGUI::drawParameterInt(&particleXRight, "");
+        ParameterGUI::drawParameterInt(&particleYRight, "");
+        ParameterGUI::drawMenu(&axisRight);
+      }
+      ParameterGUI::drawParameter(&inputScale);
+      ParameterGUI::drawParameter(&inputThreshold);
+      if (inputMode == 1) ParameterGUI::drawParameterInt(&rmsSize, "");
     }
     yposition += ImGui::GetWindowHeight();
     ImGui::PopFont();

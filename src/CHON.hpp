@@ -139,15 +139,18 @@ class CHON : public App {
   ParameterBool reverbOn{"Reverb On", "Synthesis", 0};               // Reverb
   Parameter reverbTail{"Tail", "Synthesis", 0.15f, "", 0.0f, 1.0f};  // Reverb decay time
 
-  ParameterInt RMSSize{"RMS Samples", "Audio", 2048, 512, 4096};
-  ParameterBool RMSInputOn{"RMS Input", "Audio", 0};
-  ParameterBool RMSStereo{"RMS Stereo", "Audio", 0};
-  ParameterInt RMSParticleX{"RMS Particle X", "Audio", 1, 1, nX};
-  ParameterInt RMSParticleY{"RMS Particle Y", "Audio", 1, 1, nY};
-
-  ParameterMenu RMSAxis{"RMS Axis"};
-  Parameter RMSScale{"RMS Scaling", "Audio", 1.0f, 0.1f, 2.0f};
-  Parameter RMSThreshold{"RMS Threshold", "Audio", 1.0f, 0.0f, 2.0f};
+  ParameterBool inputOn{"Input On", "Audio", 0};
+  ParameterMenu inputMode{"Input Mode"};
+  ParameterBool stereoSplit{"Stereo Split", "Audio", 0};
+  ParameterInt particleXLeft{"X##Left", "Audio", 1, 1, nX};
+  ParameterInt particleYLeft{"Y##Left", "Audio", 1, 1, nY};
+  ParameterMenu axisLeft{"Drive Axis##Left"};
+  ParameterInt particleXRight{"X##Right", "Audio", 1, 1, nX};
+  ParameterInt particleYRight{"Y##Right", "Audio", 1, 1, nY};
+  ParameterMenu axisRight{"Drive Axis##Right"};
+  Parameter inputThreshold{"Input Threshold", "Audio", 1.0f, 0.0f, 2.0f};
+  Parameter inputScale{"Input Scaling", "Audio", 1.0f, 0.1f, 2.0f};
+  ParameterInt rmsSize{"RMS Samples", "Audio", 2048, 512, 4096};
 
   /*
   Scales
@@ -279,6 +282,6 @@ class CHON : public App {
   int inBufferSize = 4096;
   RingBuffer inLeft{inBufferSize};
   RingBuffer inRight{inBufferSize};
-  float RMSLeft = 0;
-  float RMSRight = 0;
+  float driveForceLeft = 0;
+  float driveForceRight = 0;
 };
