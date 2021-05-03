@@ -208,24 +208,38 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
   freedom[2] = zFree;
 
   if (!pause) {
-    if (inputMode == 0) {
-      driveForceLeft = inLeft.at(inLeft.getTail());
-      driveForceRight = inRight.at(inRight.getTail());
-    } else if (inputMode == 1) {
-      driveForceLeft = inLeft.getRMS(rmsSize);
-      driveForceRight = inRight.getRMS(rmsSize);
-    }
-    if (stereoSplit) {
-      if (driveForceLeft > inputThreshold)
-        particle[particleXLeft][particleYLeft].acceleration[axisLeft] +=
-          driveForceLeft * inputScale;
-      if (driveForceRight > inputThreshold)
-        particle[particleXRight][particleYRight].acceleration[axisRight] +=
-          driveForceRight * inputScale;
-    } else {
-      if (driveForceLeft > inputThreshold || driveForceRight > inputThreshold)
-        particle[particleXLeft][particleYLeft].acceleration[axisLeft] +=
-          std::max(driveForceLeft, driveForceRight) * inputScale;
+    if (inputOn) {
+      switch (inputMode) {
+        case 0:  // Peak
+          driveForceLeft = inLeft.at(inLeft.getTail());
+          if (driveForceLeft > inputThreshold)
+            particle[particleXLeft][particleYLeft].acceleration[axisLeft] +=
+              driveForceLeft * inputScale;
+          if (stereoSplit) {
+            driveForceRight = inRight.at(inRight.getTail());
+            if (driveForceRight > inputThreshold)
+              particle[particleXRight][particleYRight].acceleration[axisRight] +=
+                driveForceRight * inputScale;
+          }
+          break;
+        case 1:  // RMS
+          driveForceLeft = inLeft.getRMS(rmsSize);
+          if (driveForceLeft > inputThreshold)
+            particle[particleXLeft][particleYLeft].acceleration[axisLeft] +=
+              driveForceLeft * inputScale;
+          if (stereoSplit) {
+            driveForceRight = inRight.getRMS(rmsSize);
+            if (driveForceRight > inputThreshold)
+              particle[particleXRight][particleYRight].acceleration[axisRight] +=
+                driveForceRight * inputScale;
+          }
+          break;
+        case 2:
+
+          break;
+        default:
+          break;
+      }
     }
 
     updateVelocities(particle, springLength, freedom, kX, kY, mAll, b, 60);
@@ -563,9 +577,36 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
       io.out(0) = s;
       io.out(1) = s;
     }
-    // Add samples to input ringbuffers (squared in advance for RMS calculations)
-    inLeft.push_back(io.in(0));
-    inRight.push_back(io.in(1));
+
+    // Handle input
+    if (inputOn) {
+      switch (inputMode) {
+        case 0:  // Peak
+          if (stereoSplit) {
+            inLeft.push_back(io.in(0));
+            inRight.push_back(io.in(1));
+          } else {
+            inLeft.push_back((io.in(0) + io.in(1)) / 2);
+          }
+          break;
+        case 1:  // RMS
+          if (stereoSplit) {
+            inLeft.push_back(io.in(0));
+            inRight.push_back(io.in(1));
+          } else {
+            inLeft.push_back((io.in(0) + io.in(1)) / 2);
+          }
+          break;
+        case 2:  // FFT
+          if (stft(s)) {
+            // fftBuffer = stft.
+          }
+          break;
+
+        default:
+          break;
+      }
+    }
   }
 }
 

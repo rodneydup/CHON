@@ -1,5 +1,6 @@
 #include "./Roboto-Medium.hpp"
 #include "./calculations.hpp"
+#include "Gamma/DFT.h"
 #include "Gamma/Filter.h"
 #include "Gamma/Noise.h"
 #include "Gamma/Oscillator.h"
@@ -284,4 +285,14 @@ class CHON : public App {
   RingBuffer inRight{inBufferSize};
   float driveForceLeft = 0;
   float driveForceRight = 0;
+  gam::STFT stft{
+    256,          // Window size
+    256,          // Hop size; number of samples between transforms
+    0,            // Pad size; number of zero-valued samples appended to window
+    gam::HANN,    // Window type: BARTLETT, BLACKMAN, BLACKMAN_HARRIS,
+                  //		HAMMING, HANN, WELCH, NYQUIST, or RECTANGLE
+    gam::COMPLEX  // Format of frequency samples:
+                  //		COMPLEX, MAG_PHASE, or MAG_FREQ
+  };
+  std::array<float, 129> fftBuffer = {};
 };
