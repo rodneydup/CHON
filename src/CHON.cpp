@@ -5,8 +5,6 @@
 //    - Implement "kuramoto mode"
 //    - Implement collisions
 //    - Accept OSC in to control some parameters
-//    - FFT of input for mapping to particle motion
-//    - Pass RMS amplitude out via OSC
 
 #include "CHON.hpp"
 
@@ -182,7 +180,7 @@ void CHON::chonReset() {
   particleXRight.max(nX);
   particleYRight.max(nY);
 
-  fftDivision = fftBuffer.size() / (nX * nY);
+  fftDivision = log(fftBuffer.size()) / (nX * nY);
   client.send("/Nparticles/", nX * nY);
   resetLock.unlock();
 }
@@ -236,9 +234,10 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
           }
           break;
         case 2:  // Frequency
-          for (int i = 0; i < fftBuffer.size(); i++) {
-            fftIterator = floor(i / fftDivision);
-            particle[(fftIterator % nX) + 1][ceil((fftIterator + 1) / float(nX))]
+          particle[1][1].acceleration[axisLeft] += fftBuffer[0] * inputScale;
+          for (int i = 1; i < fftBuffer.size(); i++) {
+            fftIterator = floor((log(i) / fftDivision) + 1);
+            particle[fftIterator % (nX + 1)][ceil(fftIterator / float(nX + 1))]
               .acceleration[axisLeft] += fftBuffer[i] * inputScale;
           }
           fftIterator = 0;
@@ -472,13 +471,13 @@ void CHON::onDraw(Graphics &g) {  // Draw function
       ParameterGUI::drawParameterBool(&inputOn);
       ParameterGUI::drawMenu(&inputMode);
       if (inputMode != 2) {
-        if (stereoSplit) ImGui::Text("Left Channel");
         ParameterGUI::drawParameterBool(&stereoSplit);
+        if (stereoSplit) ImGui::Text("Left Channel");
         ParameterGUI::drawParameterInt(&particleXLeft, "");
         ParameterGUI::drawParameterInt(&particleYLeft, "");
       }
       ParameterGUI::drawMenu(&axisLeft);
-      if (stereoSplit) {
+      if (stereoSplit && inputMode != 2) {
         ImGui::Text("Right Channel");
         ParameterGUI::drawParameterInt(&particleXRight, "");
         ParameterGUI::drawParameterInt(&particleYRight, "");
