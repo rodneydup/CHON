@@ -66,7 +66,7 @@ void CHON::onInit() {  // Called on app start
   bellScale.setElements({"Pentatonic", "Major", "Chromatic", "Harmonics", "Bohlen-Pierce"});
   axisLeft.setElements({"x", "y", "z"});
   axisRight.setElements({"x", "y", "z"});
-  inputMode.setElements({"Peak", "RMS", "FFT"});
+  inputMode.setElements({"Peak", "RMS", "Frequency"});
 
   bellScale.registerChangeCallback([&](int tuning) {
     switch (tuning) {
@@ -182,6 +182,7 @@ void CHON::chonReset() {
   particleXRight.max(nX);
   particleYRight.max(nY);
 
+  fftDivision = fftBuffer.size() / (nX * nY);
   client.send("/Nparticles/", nX * nY);
   resetLock.unlock();
 }
@@ -234,8 +235,13 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
                 driveForceRight * inputScale;
           }
           break;
-        case 2:
-
+        case 2:  // Frequency
+          for (int i = 0; i < fftBuffer.size(); i++) {
+            fftIterator = floor(i / fftDivision);
+            particle[(fftIterator % nX) + 1][ceil((fftIterator + 1) / float(nX))]
+              .acceleration[axisLeft] += fftBuffer[i] * inputScale;
+          }
+          fftIterator = 0;
           break;
         default:
           break;
@@ -465,17 +471,21 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     if (ImGui::CollapsingHeader("Input")) {
       ParameterGUI::drawParameterBool(&inputOn);
       ParameterGUI::drawMenu(&inputMode);
-      ParameterGUI::drawParameterBool(&stereoSplit);
-      ParameterGUI::drawParameterInt(&particleXLeft, "");
-      ParameterGUI::drawParameterInt(&particleYLeft, "");
+      if (inputMode != 2) {
+        if (stereoSplit) ImGui::Text("Left Channel");
+        ParameterGUI::drawParameterBool(&stereoSplit);
+        ParameterGUI::drawParameterInt(&particleXLeft, "");
+        ParameterGUI::drawParameterInt(&particleYLeft, "");
+      }
       ParameterGUI::drawMenu(&axisLeft);
       if (stereoSplit) {
+        ImGui::Text("Right Channel");
         ParameterGUI::drawParameterInt(&particleXRight, "");
         ParameterGUI::drawParameterInt(&particleYRight, "");
         ParameterGUI::drawMenu(&axisRight);
       }
       ParameterGUI::drawParameter(&inputScale);
-      ParameterGUI::drawParameter(&inputThreshold);
+      if (inputMode != 2) ParameterGUI::drawParameter(&inputThreshold);
       if (inputMode == 1) ParameterGUI::drawParameterInt(&rmsSize, "");
     }
     yposition += ImGui::GetWindowHeight();
@@ -597,9 +607,11 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
             inLeft.push_back((io.in(0) + io.in(1)) / 2);
           }
           break;
-        case 2:  // FFT
-          if (stft(s)) {
-            // fftBuffer = stft.
+        case 2:  // Frequency
+          if (stft((io.in(0) + io.in(1)) / 2)) {
+            for (int i = 0; i < stft.numBins(); i++) {
+              fftBuffer[i] = abs(stft.bin(i)[0]);
+            }
           }
           break;
 

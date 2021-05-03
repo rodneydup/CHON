@@ -295,4 +295,6 @@ class CHON : public App {
                   //		COMPLEX, MAG_PHASE, or MAG_FREQ
   };
   std::array<float, 129> fftBuffer = {};
+  float fftDivision = 1;
+  int fftIterator = 0;
 };
