@@ -100,8 +100,8 @@ class CHON : public App {
   /*
   GUI variables
   */
-  std::unique_ptr<BundleGUIManager> xSpringGUI;
-  std::unique_ptr<BundleGUIManager> ySpringGUI;
+  std::unique_ptr<ChonBundle> xSpringGUI;
+  std::unique_ptr<ChonBundle> ySpringGUI;
   Parameter mAll{"Mass", "physics", 1.0f, "", 1.0f, 100.0f};  // Master mass
   Parameter b{"Damping", "physics", 0.0f, "", 0.0f, 5.0f};    // damping
   ParameterBool xFree{"X axis", "Degrees of Freedom", 1};

@@ -154,8 +154,8 @@ void CHON::chonReset() {
       particle[x][y].oscName[2] = "/dispZ/" + std::to_string(((y - 1) * nX) + x) + "/";
     }
 
-  xSpringGUI.reset(new BundleGUIManager());
-  ySpringGUI.reset(new BundleGUIManager());
+  xSpringGUI.reset(new ChonBundle(1));
+  ySpringGUI.reset(new ChonBundle(1));
 
   xSprings.clear();
   ySprings.clear();

@@ -50,7 +50,7 @@ class SmoothValue {
 };
 
 struct Spring {
-  Spring(const char* name) {
+  Spring(const char *name) {
     bundle.name(name);
     bundle << k;
   }
@@ -155,7 +155,7 @@ class RingBuffer {
 
   float operator[](unsigned index) { return this->at(index); }
 
-  const float* data() { return mBuffer.data(); }
+  const float *data() { return mBuffer.data(); }
 
   float getRMS(unsigned lookBackLength) {
     int start = mTail - lookBackLength;
@@ -180,4 +180,55 @@ class RingBuffer {
   float mPrevSample;
 
   std::mutex mMutex;
+};
+
+/// BundleGUIManager copied from Allolib and modified to give access to "global"
+class ChonBundle {
+  /// @ingroup UI
+ public:
+  ChonBundle(bool global) { mBundleGlobal = global; }
+
+  void drawBundleGUI() {
+    std::unique_lock<std::mutex> lk(mBundleLock);
+    std::string suffix = "##_bundle_" + mName;
+    al::ParameterGUI::drawBundleGroup(mBundles, suffix, mCurrentBundle, mBundleGlobal);
+  }
+
+  ChonBundle &registerParameterBundle(al::ParameterBundle &bundle) {
+    if (mName.size() == 0 || bundle.name() == mName) {
+      std::unique_lock<std::mutex> lk(mBundleLock);
+      if (mName.size() == 0) {
+        mName = bundle.name();
+      }
+      mBundles.push_back(&bundle);
+    } else {
+      std::cout << "Warning: bundle name mismatch. Bundle '" << bundle.name() << "' ingnored."
+                << std::endl;
+    }
+    return *this;
+  };
+
+  /// Register parameter using the streaming operator.
+  ChonBundle &operator<<(al::ParameterBundle &newBundle) {
+    return registerParameterBundle(newBundle);
+  }
+
+  /// Register parameter using the streaming operator.
+  ChonBundle &operator<<(al::ParameterBundle *newBundle) {
+    return registerParameterBundle(*newBundle);
+  }
+
+  std::string name() { return mName; }
+
+  int &currentBundle() { return mCurrentBundle; }
+  bool &bundleGlobal() { return mBundleGlobal; }
+  bool &bundleGlobal(bool global) { mBundleGlobal = global; }
+  std::vector<al::ParameterBundle *> bundles() { return mBundles; }
+
+ private:
+  std::mutex mBundleLock;
+  std::vector<al::ParameterBundle *> mBundles;
+  std::string mName;
+  int mCurrentBundle{0};
+  bool mBundleGlobal{false};
 };
