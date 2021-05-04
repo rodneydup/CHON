@@ -280,7 +280,7 @@ class CHON : public App {
   }
 
   // Audio input buffers
-  int inBufferSize = 4096;
+  unsigned int inBufferSize = 4096;
   RingBuffer inLeft{inBufferSize};
   RingBuffer inRight{inBufferSize};
   float driveForceLeft = 0;
