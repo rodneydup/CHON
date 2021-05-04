@@ -115,8 +115,6 @@ void CHON::chonReset() {
   // changing camera depending on if it's a 2D or 1D particle system
   if (nY == 1 && yParticles > 1) {
     onResize(width(), height());
-    nav().turnF(-0.5);
-    nav().faceToward(Vec3d{1, 1, -1});
   } else if (yParticles == 1) {
     onResize(width(), height());
   }
@@ -624,16 +622,20 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
 void CHON::onResize(int width, int height) {
   if (!drawGUI) {
     nav().home();
-    if (yParticles > 1)
+    if (yParticles > 1) {
       nav().pullBack(2.2 + pow(0.002 * (1900 - width), 2));
-    else
+      nav().view(0, 0, -0.5);
+      nav().faceToward(Vec3d{1, 1, -1});
+    } else
       nav().pullBack(1.2 + pow(0.002 * (1900 - width), 2));
   } else {
     nav().home();
     nav().pos(-0.5 * (500 / float(width)), 0.2, 0);
-    if (yParticles > 1)
+    if (yParticles > 1) {
       nav().pullBack(2.7 + pow(0.002 * (1900 - width), 2));
-    else
+      nav().view(0, 0, -0.5);
+      nav().faceToward(Vec3d{1, 1, -1});
+    } else
       nav().pullBack(1.5 + pow(0.002 * (1900 - width), 2));
   }
 }
