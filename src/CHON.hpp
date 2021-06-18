@@ -143,12 +143,12 @@ class CHON : public App {
   ParameterBool inputOn{"Input On", "Audio", 0};
   ParameterMenu inputMode{"Input Mode"};
   ParameterBool stereoSplit{"Stereo Split", "Audio", 0};
-  ParameterInt particleXLeft{"X##Left", "Audio", 1, 1, nX};
-  ParameterInt particleYLeft{"Y##Left", "Audio", 1, 1, nY};
-  ParameterMenu axisLeft{"Drive Axis##Left"};
-  ParameterInt particleXRight{"X##Right", "Audio", 1, 1, nX};
-  ParameterInt particleYRight{"Y##Right", "Audio", 1, 1, nY};
-  ParameterMenu axisRight{"Drive Axis##Right"};
+  ParameterInt driveParticleXLeft{"X##Left", "Audio", 1, 1, nX};
+  ParameterInt driveParticleYLeft{"Y##Left", "Audio", 1, 1, nY};
+  ParameterMenu driveAxisLeft{"Drive Axis##Left"};
+  ParameterInt driveParticleXRight{"X##Right", "Audio", 1, 1, nX};
+  ParameterInt driveParticleYRight{"Y##Right", "Audio", 1, 1, nY};
+  ParameterMenu driveAxisRight{"Drive Axis##Right"};
   Parameter inputThreshold{"Input Threshold", "Audio", 1.0f, 0.0f, 2.0f};
   Parameter inputScale{"Input Scaling", "Audio", 1.0f, 0.1f, 2.0f};
   ParameterInt rmsSize{"RMS Samples", "Audio", 2048, 512, 4096};

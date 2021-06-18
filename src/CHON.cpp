@@ -62,8 +62,8 @@ void CHON::onInit() {  // Called on app start
   amAxis.setElements({"x", "y", "z"});
   bellAxis.setElements({"x", "y", "z"});
   bellScale.setElements({"Pentatonic", "Major", "Chromatic", "Harmonics", "Bohlen-Pierce"});
-  axisLeft.setElements({"x", "y", "z"});
-  axisRight.setElements({"x", "y", "z"});
+  driveAxisLeft.setElements({"x", "y", "z"});
+  driveAxisRight.setElements({"x", "y", "z"});
   inputMode.setElements({"Peak", "RMS", "Frequency"});
 
   bellScale.registerChangeCallback([&](int tuning) {
@@ -152,6 +152,8 @@ void CHON::chonReset() {
       particle[x][y].oscName[2] = "/dispZ/" + std::to_string(((y - 1) * nX) + x) + "/";
     }
 
+  std::cout << particle[0][0].equilibrium[0] << std::endl;
+
   xSpringGUI.reset(new ChonBundle(1));
   ySpringGUI.reset(new ChonBundle(1));
 
@@ -173,10 +175,10 @@ void CHON::chonReset() {
     *ySpringGUI << newSpring->bundle;
   }
 
-  particleXLeft.max(nX);
-  particleYLeft.max(nY);
-  particleXRight.max(nX);
-  particleYRight.max(nY);
+  driveParticleXLeft.max(nX);
+  driveParticleYLeft.max(nY);
+  driveParticleXRight.max(nX);
+  driveParticleYRight.max(nY);
 
   fftDivision = log(fftBuffer.size()) / (nX * nY);
   client.send("/Nparticles/", nX * nY);
@@ -210,33 +212,33 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
         case 0:  // Peak
           driveForceLeft = inLeft.at(inLeft.getTail());
           if (driveForceLeft > inputThreshold)
-            particle[particleXLeft][particleYLeft].acceleration[axisLeft] +=
+            particle[driveParticleXLeft][driveParticleYLeft].acceleration[driveAxisLeft] +=
               driveForceLeft * inputScale;
           if (stereoSplit) {
             driveForceRight = inRight.at(inRight.getTail());
             if (driveForceRight > inputThreshold)
-              particle[particleXRight][particleYRight].acceleration[axisRight] +=
+              particle[driveParticleXRight][driveParticleYRight].acceleration[driveAxisRight] +=
                 driveForceRight * inputScale;
           }
           break;
         case 1:  // RMS
           driveForceLeft = inLeft.getRMS(rmsSize);
           if (driveForceLeft > inputThreshold)
-            particle[particleXLeft][particleYLeft].acceleration[axisLeft] +=
+            particle[driveParticleXLeft][driveParticleYLeft].acceleration[driveAxisLeft] +=
               driveForceLeft * inputScale;
           if (stereoSplit) {
             driveForceRight = inRight.getRMS(rmsSize);
             if (driveForceRight > inputThreshold)
-              particle[particleXRight][particleYRight].acceleration[axisRight] +=
+              particle[driveParticleXRight][driveParticleYRight].acceleration[driveAxisRight] +=
                 driveForceRight * inputScale;
           }
           break;
         case 2:  // Frequency
-          particle[1][1].acceleration[axisLeft] += fftBuffer[0] * inputScale;
+          particle[1][1].acceleration[driveAxisLeft] += fftBuffer[0] * inputScale;
           for (int i = 1; i < fftBuffer.size(); i++) {
             fftIterator = floor((log(i) / fftDivision) + 1);
             particle[fftIterator % (nX + 1)][ceil(fftIterator / float(nX + 1))]
-              .acceleration[axisLeft] += fftBuffer[i] * inputScale;
+              .acceleration[driveAxisLeft] += fftBuffer[i] * inputScale;
           }
           fftIterator = 0;
           break;
@@ -289,7 +291,6 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
 
         // OSC
         if (oscOn) {
-          particle[x][y].updateDisplacement();
           if (oscX)
             client.send(particle[x][y].oscName[0],
                         float(particle[x][y].displacement[0] / springLength));
@@ -471,15 +472,15 @@ void CHON::onDraw(Graphics &g) {  // Draw function
       if (inputMode != 2) {
         ParameterGUI::drawParameterBool(&stereoSplit);
         if (stereoSplit) ImGui::Text("Left Channel");
-        ParameterGUI::drawParameterInt(&particleXLeft, "");
-        ParameterGUI::drawParameterInt(&particleYLeft, "");
+        ParameterGUI::drawParameterInt(&driveParticleXLeft, "");
+        ParameterGUI::drawParameterInt(&driveParticleYLeft, "");
       }
-      ParameterGUI::drawMenu(&axisLeft);
+      ParameterGUI::drawMenu(&driveAxisLeft);
       if (stereoSplit && inputMode != 2) {
         ImGui::Text("Right Channel");
-        ParameterGUI::drawParameterInt(&particleXRight, "");
-        ParameterGUI::drawParameterInt(&particleYRight, "");
-        ParameterGUI::drawMenu(&axisRight);
+        ParameterGUI::drawParameterInt(&driveParticleXRight, "");
+        ParameterGUI::drawParameterInt(&driveParticleYRight, "");
+        ParameterGUI::drawMenu(&driveAxisRight);
       }
       ParameterGUI::drawParameter(&inputScale);
       if (inputMode != 2) ParameterGUI::drawParameter(&inputThreshold);
@@ -501,6 +502,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::drawParameterBool(&oscY);
     ImGui::SameLine();
     ParameterGUI::drawParameterBool(&oscZ);
+    std::cout << IM_ARRAYSIZE(addr) << std::endl;
     if (ImGui::InputText("IP Address", addr, IM_ARRAYSIZE(addr),
                          ImGuiInputTextFlags_EnterReturnsTrue))
       resetOSC();
@@ -526,6 +528,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
 
 void CHON::onSound(AudioIOData &io) {  // Audio callback
   while (io()) {
+    // double s[2] = {0, 0};
     double s = 0;
     // if (am) amCounter -= 1;
     if (resetLock.try_lock()) {
