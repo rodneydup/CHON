@@ -79,10 +79,7 @@ class CHON : public App {
   bool twoDimensions = false;
   std::vector<Spring *> xSprings;
   std::vector<Spring *> ySprings;
-
-  std::vector<std::vector<Particle>> particle;  // create particles (plus 2 boundary particles)
-  std::vector<double> kX;                       // Spring Constants for x direction
-  std::vector<double> kY;                       // Spring Constants for y direction
+  std::vector<std::vector<Particle>> particle;  // 2D vector containing our Particles
 
   double springLength;          // Spacing between particles
   bool freedom[3] = {1, 0, 0};  // Degrees of freedom for particle movement
@@ -103,7 +100,7 @@ class CHON : public App {
   std::unique_ptr<ChonBundle> xSpringGUI;
   std::unique_ptr<ChonBundle> ySpringGUI;
   Parameter mAll{"Mass", "physics", 1.0f, "", 1.0f, 100.0f};  // Master mass
-  Parameter b{"Damping", "physics", 0.0f, "", 0.0f, 5.0f};    // damping
+  Parameter b{"Damping", "physics", 0.0f, "", 0.0f, 3.0f};    // damping
   ParameterBool xFree{"X axis", "Degrees of Freedom", 1};
   ParameterBool yFree{"Y axis", "Degrees of Freedom", 0};
   ParameterBool zFree{"Z axis", "Degrees of Freedom", 0};
@@ -116,8 +113,9 @@ class CHON : public App {
   ParameterBool drawParticles{"Draw Particles", "draw", 1};    // Toggle drawing particles
   ParameterBool drawBoundaries{"Draw Boundaries", "draw", 0};  // Toggle drawing boundaries
 
-  ParameterBool AdditiveSynthOn{"Additive Synth On", "Synthesis", 0};  // Additive Synth toggle
-  ParameterBool bellSynthOn{"Bell Synth On", "Synthesis", 0};          // Additive Synth toggle
+  ParameterBool stereoOn{"Stereo", "Synthesis", 0};                    // Stereo Mode toggle
+  ParameterBool additiveSynthOn{"Additive Synth On", "Synthesis", 0};  // Additive Synth toggle
+  ParameterBool bellSynthOn{"Bell Synth On", "Synthesis", 0};          // Bell Synth toggle
   ParameterMenu bellAxis{"Axis##bell"};
   ParameterMenu bellScale{"Scale##bell"};                                   // Tuning of Bell synth
   Parameter bellRoot{"Root##bell", "Synthesis", 60.0f, "", 1.0f, 1000.0f};  // Root of bell tuning
@@ -142,7 +140,7 @@ class CHON : public App {
 
   ParameterBool inputOn{"Input On", "Audio", 0};
   ParameterMenu inputMode{"Input Mode"};
-  ParameterBool stereoSplit{"Stereo Split", "Audio", 0};
+  ParameterBool driveStereoSplit{"Stereo Split", "Audio", 0};
   ParameterInt driveParticleXLeft{"X##Left", "Audio", 1, 1, nX};
   ParameterInt driveParticleYLeft{"Y##Left", "Audio", 1, 1, nY};
   ParameterMenu driveAxisLeft{"Drive Axis##Left"};
@@ -204,6 +202,7 @@ class CHON : public App {
   ParameterBool oscX{"X disp", "OSC", 0};
   ParameterBool oscY{"Y disp", "OSC", 0};
   ParameterBool oscZ{"Z disp", "OSC", 0};
+  ParameterBool oscPan{"Pan", "OSC", 0};
 
   void resetOSC() {
     client.open(port, addr);

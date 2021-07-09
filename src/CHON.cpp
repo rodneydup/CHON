@@ -125,12 +125,8 @@ void CHON::chonReset() {
 
   // reset these arrays
   particle.clear();
-  kX.clear();
-  kY.clear();
   particle.resize(nX + 2);
   for (int y = 0; y <= nX + 1; y++) particle[y].resize(nY + 2);
-  kX.resize(nX + 1);
-  kY.resize(nY + 1);
 
   springLength = 1.0f / (std::max(nX, nY) + 1);
 
@@ -146,13 +142,11 @@ void CHON::chonReset() {
       particle[x][y].equilibrium[2] = 0;
       particle[x][y].particle.pose.setPos(particle[x][y].equilibrium);
       particle[x][y].graph.primitive(Mesh::LINE_STRIP);
-      particle[x][y].mass = mAll;
-      particle[x][y].oscName[0] = "/dispX/" + std::to_string(((y - 1) * nX) + x) + "/";
-      particle[x][y].oscName[1] = "/dispY/" + std::to_string(((y - 1) * nX) + x) + "/";
-      particle[x][y].oscName[2] = "/dispZ/" + std::to_string(((y - 1) * nX) + x) + "/";
+      particle[x][y].oscName[0] = "/dispX/" + std::to_string(((y - 1) * nX) + x);
+      particle[x][y].oscName[1] = "/dispY/" + std::to_string(((y - 1) * nX) + x);
+      particle[x][y].oscName[2] = "/dispZ/" + std::to_string(((y - 1) * nX) + x);
+      particle[x][y].oscName[3] = "/pan/" + std::to_string(((y - 1) * nX) + x);
     }
-
-  std::cout << particle[0][0].equilibrium[0] << std::endl;
 
   xSpringGUI.reset(new ChonBundle(1));
   ySpringGUI.reset(new ChonBundle(1));
@@ -194,14 +188,6 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
   w = width();
   h = height();
 
-  /// wait... why did I do this? Do I need to do this?
-  for (int i = 0; i < xSprings.size(); i++) {
-    kX[i] = xSprings[i]->k;
-  }
-  for (int i = 0; i < ySprings.size(); i++) {
-    kY[i] = ySprings[i]->k;
-  }
-
   freedom[0] = xFree;
   freedom[1] = yFree;
   freedom[2] = zFree;
@@ -214,7 +200,7 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
           if (driveForceLeft > inputThreshold)
             particle[driveParticleXLeft][driveParticleYLeft].acceleration[driveAxisLeft] +=
               driveForceLeft * inputScale;
-          if (stereoSplit) {
+          if (driveStereoSplit) {
             driveForceRight = inRight.at(inRight.getTail());
             if (driveForceRight > inputThreshold)
               particle[driveParticleXRight][driveParticleYRight].acceleration[driveAxisRight] +=
@@ -226,7 +212,7 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
           if (driveForceLeft > inputThreshold)
             particle[driveParticleXLeft][driveParticleYLeft].acceleration[driveAxisLeft] +=
               driveForceLeft * inputScale;
-          if (stereoSplit) {
+          if (driveStereoSplit) {
             driveForceRight = inRight.getRMS(rmsSize);
             if (driveForceRight > inputThreshold)
               particle[driveParticleXRight][driveParticleYRight].acceleration[driveAxisRight] +=
@@ -247,18 +233,18 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
       }
     }
 
-    updateVelocities(particle, springLength, freedom, kX, kY, mAll, b, 60);
+    updateVelocities(particle, springLength, freedom, xSprings, ySprings, mAll, b, dt);
     for (int x = 1; x <= nX; x++)
       for (int y = 1; y <= nY; y++) {  // animate stuff
         if (((y - 1) * nX) + x == picked) {
           for (int j = 0; j < 3; j++) particle[x][y].velocity[j] = 0;
-        } else {  // add velocities
+        } else {  // increment positions according to velocity
           particle[x][y].addVelocity();
         }
 
         particle[x][y].updateDisplacement();
 
-        if (DrawGraph) {
+        if (DrawGraph) {  // updating the 2d displacement graph
           particle[x][y].graph.translate(-w / (60 * graphSpeed), 0,
                                          0);  // move previous graph data left
           if (particle[x][y].graph.vertices().size() > w)
@@ -271,22 +257,27 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
           particle[x][y].graph.vertex(w, graphY, 0);       // update with new graph data on right
         }
 
-        if (fm) {
+        if (fm) {  // copy displacement values to FM synthesis engine
           particle[x][y].fmSmooth.setTarget(particle[x][y].displacement[fmAxis] / springLength);
         }
 
-        if (am) {
+        if (am) {  // copy displacement values to AM synthesis engine
           float val = particle[x][y].displacement[amAxis] / springLength;
           val > 1 ? 1 : val;
           val < -1 ? -1 : val;
           particle[x][y].amSmooth.setTarget(val);
         }
 
+        if (stereoOn) {  // set the particle's pan position
+          particle[x][y].panSmooth.setTarget(particle[x][y].x() + 0.5);
+        }
+
         for (int j = 0; j < 3; j++) {  // check if zero crossing
           if (signbit(particle[x][y].prevDisplacement[j]) !=
                 signbit(particle[x][y].displacement[j]) &&
-              abs(particle[x][y].prevDisplacement[j] - particle[x][y].displacement[j]) > 0.00001)
+              abs(particle[x][y].prevDisplacement[j] - particle[x][y].displacement[j]) > 0.00001) {
             particle[x][y].zeroTrigger[j] = 1;
+          }
         }
 
         // OSC
@@ -296,6 +287,7 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
                         float(particle[x][y].displacement[0] / springLength));
           if (oscY) client.send(particle[x][y].oscName[1], float(particle[x][y].displacement[1]));
           if (oscZ) client.send(particle[x][y].oscName[2], float(particle[x][y].displacement[2]));
+          if (oscPan) client.send(particle[x][y].oscName[3], float(particle[x][y].x()));
         }
       }
   }
@@ -420,6 +412,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::beginPanel("Synthesis", 0, yposition, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
+    ParameterGUI::drawParameterBool(&stereoOn);
     if (ImGui::CollapsingHeader("Bell Synth")) {
       ParameterGUI::drawParameterBool(&bellSynthOn);
       ImGui::SetNextItemWidth(35);
@@ -430,7 +423,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
       ParameterGUI::drawParameter(&bellVolume);
     }
     if (ImGui::CollapsingHeader("Additive Synth")) {
-      ParameterGUI::drawParameterBool(&AdditiveSynthOn);
+      ParameterGUI::drawParameterBool(&additiveSynthOn);
       ParameterGUI::drawParameter(&additiveRoot);
       ParameterGUI::drawParameter(&additiveVolume);
       if (ImGui::CollapsingHeader("FM")) {
@@ -470,13 +463,13 @@ void CHON::onDraw(Graphics &g) {  // Draw function
       ParameterGUI::drawParameterBool(&inputOn);
       ParameterGUI::drawMenu(&inputMode);
       if (inputMode != 2) {
-        ParameterGUI::drawParameterBool(&stereoSplit);
-        if (stereoSplit) ImGui::Text("Left Channel");
+        ParameterGUI::drawParameterBool(&driveStereoSplit);
+        if (driveStereoSplit) ImGui::Text("Left Channel");
         ParameterGUI::drawParameterInt(&driveParticleXLeft, "");
         ParameterGUI::drawParameterInt(&driveParticleYLeft, "");
       }
       ParameterGUI::drawMenu(&driveAxisLeft);
-      if (stereoSplit && inputMode != 2) {
+      if (driveStereoSplit && inputMode != 2) {
         ImGui::Text("Right Channel");
         ParameterGUI::drawParameterInt(&driveParticleXRight, "");
         ParameterGUI::drawParameterInt(&driveParticleYRight, "");
@@ -502,7 +495,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::drawParameterBool(&oscY);
     ImGui::SameLine();
     ParameterGUI::drawParameterBool(&oscZ);
-    std::cout << IM_ARRAYSIZE(addr) << std::endl;
+    ParameterGUI::drawParameterBool(&oscPan);
     if (ImGui::InputText("IP Address", addr, IM_ARRAYSIZE(addr),
                          ImGuiInputTextFlags_EnterReturnsTrue))
       resetOSC();
@@ -510,7 +503,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     if (ImGui::CollapsingHeader("Message Syntax")) {
       ImGui::Text(
         "OSC messages are formatted as follows:\n"
-        "FirstArg/SecondArg/ Value\n\n"
+        "FirstArg/SecondArg Value\n\n"
         "FirstArg:\n"
         "dispX, dispY, or dispZ \n\n"
         "SecondArg:\n"
@@ -528,12 +521,17 @@ void CHON::onDraw(Graphics &g) {  // Draw function
 
 void CHON::onSound(AudioIOData &io) {  // Audio callback
   while (io()) {
-    // double s[2] = {0, 0};
-    double s = 0;
-    // if (am) amCounter -= 1;
+    double s[2] = {0, 0};
+
     if (resetLock.try_lock()) {
-      resetLock.unlock();
-      if (AdditiveSynthOn) {
+      if (stereoOn) {
+        for (int x = 1; x <= nX; x++)
+          for (int y = 1; y <= nY; y++) {
+            particle[x][y].panSmooth.process();
+          }
+      }
+
+      if (additiveSynthOn) {
         for (int x = 1; x <= nX; x++)
           for (int y = 1; y <= nY; y++) {  // add all oscillator samples to be sent to output
             if (x * additiveRoot < 20000) {
@@ -555,7 +553,13 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
                   sampleToAdd *
                   particle[x][y].amSmooth.getCurrentValue();  // scale for amplitude modulation
               }
-              s += sampleToAdd;
+              if (stereoOn) {
+                s[0] += (1 - particle[x][y].panSmooth.getCurrentValue()) * sampleToAdd;
+                s[1] += particle[x][y].panSmooth.getCurrentValue() * sampleToAdd;
+              } else {
+                s[0] += sampleToAdd;
+                s[1] += sampleToAdd;
+              }
             }
           }
       }
@@ -571,28 +575,39 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
               particle[x][y].bellEnv = 1;
             }
             if (particle[x][y].bellEnv > 0) particle[x][y].bellEnv -= 0.00005;
-            s += particle[x][y].bell() * 0.2 * bellVolume * particle[x][y].getBellEnv();
+            double sampleToAdd =
+              particle[x][y].bell() * 0.2 * bellVolume * particle[x][y].getBellEnv();
+            if (stereoOn) {
+              s[0] += (1 - particle[x][y].panSmooth.getCurrentValue()) * sampleToAdd;
+              s[1] += particle[x][y].panSmooth.getCurrentValue() * sampleToAdd;
+            } else {
+              s[0] += sampleToAdd;
+              s[1] += sampleToAdd;
+            }
+
             particle[x][y].zeroTrigger[bellAxis] = 0;
           }
       }
+      resetLock.unlock();
     }
 
     if (reverbOn) {
       // Compute two wet channels of reverberation
-      float wet1, wet2;
-      reverb(s, wet1, wet2);
+      float wet1, wet2, throwAway;
+      reverb(s[0], wet1, throwAway);
+      reverb(s[1], throwAway, wet2);
       io.out(0) = wet1;
       io.out(1) = wet2;
     } else {
-      io.out(0) = s;
-      io.out(1) = s;
+      io.out(0) = s[0];
+      io.out(1) = s[1];
     }
 
-    // Handle input
+    // Handle audio input
     if (inputOn) {
       switch (inputMode) {
         case 0:  // Peak
-          if (stereoSplit) {
+          if (driveStereoSplit) {
             inLeft.push_back(io.in(0));
             inRight.push_back(io.in(1));
           } else {
@@ -600,7 +615,7 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
           }
           break;
         case 1:  // RMS
-          if (stereoSplit) {
+          if (driveStereoSplit) {
             inLeft.push_back(io.in(0));
             inRight.push_back(io.in(1));
           } else {
