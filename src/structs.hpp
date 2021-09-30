@@ -77,38 +77,36 @@ struct Spring {
 
 struct Particle {
  public:
-  double velocity[3] = {0, 0, 0};
-  double acceleration[3] = {0, 0, 0};
-  double equilibrium[3] = {0, 0, 0};
-  double displacement[3] = {0, 0, 0};
-  double prevDisplacement[3] = {0, 0, 0};
-  std::string oscName[4] = {"", "", "", ""};
-  SmoothValue<float> amSmooth{20.0, "lin"};
-  SmoothValue<float> fmSmooth{20.0, "lin"};
-  SmoothValue<float> panSmooth{20.0, "lin"};
-
-  al::PickableBB particle;
-  al::Mesh graph;
-  gam::Sine<> oscillator;
-  gam::Sine<> FM;
-  gam::Sine<> bell;
-  gam::Biquad<> Lop;
-  double bellEnv;
-  bool zeroTrigger[3] = {0, 0, 0};
   Particle() {
     Lop.type(gam::FilterType(gam::LOW_PASS));
     Lop.set(400, 1);
-    oscillator.freq(0);
-    bell.freq(0);
+    freq = 0;
+    oscillator.freq(freq);
+    bell.freq(freq);
+    bellEnv = 0;
     amSmooth.setTime(20.0f);
     fmSmooth.setTime(20.0f);
     panSmooth.setTime(20.0f);
+    graphMesh.primitive(al::Mesh::LINE_STRIP);
   }
 
+  void setEquilibrium(al::Vec3d newEquilibrium) { equilibrium = newEquilibrium; }
+
+  al::Vec3d getEquilibrium() { return equilibrium; }
+
+  void setPos(al::Vec3d pos) { particle.pose.setPos(pos); }
   void setPos(double x, double y, double z) { particle.pose.setPos(al::Vec3d(x, y, z)); }
   double x() { return particle.pose.get().x(); }
   double y() { return particle.pose.get().y(); }
   double z() { return particle.pose.get().z(); }
+
+  void resetPos(bool x, bool y, bool z) {
+    al::Vec3d newPosition = particle.pose.get();
+    if (x) newPosition.x = equilibrium.x;
+    if (y) newPosition.y = equilibrium.y;
+    if (z) newPosition.z = equilibrium.z;
+    particle.pose.setPos(newPosition);
+  }
 
   void x(double newX) {
     al::Vec3d position = {newX, particle.pose.get().y(), particle.pose.get().z()};
@@ -129,20 +127,283 @@ struct Particle {
       displacement[i] = particle.pose.get().pos()[i] - equilibrium[i];
     }
   }
-  void addVelocity() {
+
+  al::Vec3d getDisplacement() { return displacement; }
+
+  void resetVelocity(bool x, bool y, bool z) {
+    if (x) velocity.x = 0;
+    if (y) velocity.y = 0;
+    if (z) velocity.z = 0;
+  }
+
+  void addVelocity(double x = 0, double y = 0, double z = 0) {
+    velocity[0] += x;
+    velocity[1] += y;
+    velocity[2] += z;
+  }
+
+  void velocityStep() {
     al::Vec3d position = {this->x() + this->velocity[0], this->y() + this->velocity[1],
                           this->z() + this->velocity[2]};
     particle.pose.setPos(position);
   }
 
-  float getBellEnv() { return Lop(this->bellEnv); }
+  // add acceleration to all axes
+  void addAcceleration(double x = 0, double y = 0, double z = 0) {
+    acceleration[0] += x;
+    acceleration[1] += y;
+    acceleration[2] += z;
+  }
+  void applyAcceleration(double step) { velocity += acceleration * step; }
+
+  // add acceleration to an axis
+  // axis: 0 for x, 1 for y, 2 for z
+  void addAcceleration(int axis, double val) { acceleration[axis] += val; }
+
+  void calculateAcceleration(float m, float b) {
+    acceleration = (acceleration / m) - (velocity * b);  // (kx / m) - vb
+  }
+
+  void resetAcceleration() { acceleration = {0, 0, 0}; }
+
+  void setTuningRatio(float newRatio) { tuningRatio = newRatio; }
+
+  float getTuningRatio() { return tuningRatio; }
+
+  void setFreq(float newFreq) {
+    freq = newFreq;
+    bell.freq(freq);
+    oscillator.freq(freq);
+  }
+  float getFreq() { return freq; }
+
+  void setFMModFreq(float fmMultiplier) { FM.freq(freq * fmMultiplier); }
+
+  void fmProcess(float fmWidth) {
+    oscillator.freq(freq + (FM() * fmSmooth.process() * fmWidth * 1000));  // set freq
+  }
+
+  void setParticleMesh(al::Mesh &mesh) { particle.set(mesh); }
+
+  void setParticleName(std::string name) {
+    particleName = name;
+    oscName["Xdisp"] = "/dispX/" + name;
+    oscName["Ydisp"] = "/dispY/" + name;
+    oscName["Zdisp"] = "/dispZ/" + name;
+    oscName["Xpos"] = "/pan/" + name;
+  }
+
+  std::string getParticleName() { return particleName; }
+
+  void checkZeroCrossing() {
+    for (int i = 0; i < 3; i++) {  // check if zero crossing
+      if (signbit(prevDisplacement[i]) != signbit(displacement[i]) &&
+          abs(prevDisplacement[i] - displacement[i]) > 0.00001) {
+        zeroTrigger[i] = true;
+      }
+    }
+  }
+
+  bool isZeroTrigger(int axis) {
+    if (zeroTrigger[axis]) {
+      zeroTrigger[axis] = 0;
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+
+  void bellTrigger() { bellEnv = 1; }
+
+  double bellProcess() {
+    if (bellEnv > 0) bellEnv -= 0.00005;
+    return bell() * Lop(this->bellEnv);
+  }
+
+  void draw(al::Graphics &g) { particle.drawMesh(g); }
+
+  double processOscillator() { return oscillator(); }
+
+  bool pickEvent(al::PickEvent e) { particle.event(e); }
+
+  bool isSelected() { return particle.selected; }
+  void clearSelection() { particle.clearSelection(); }
+
+  al::Mesh graphMesh;  // mesh for drawing graph
+  SmoothValue<float> amSmooth{20.0, "lin"};
+  SmoothValue<float> fmSmooth{20.0, "lin"};
+  SmoothValue<float> panSmooth{20.0, "lin"};
+  std::map<std::string, std::string> oscName{
+    {"Xdisp", ""}, {"Ydisp", ""}, {"Zdisp", ""}, {"Xpos", ""}};
+
+  al::PickableBB particle;
+
+ private:
+  al::Vec3d velocity = {0, 0, 0};
+  al::Vec3d acceleration = {0, 0, 0};
+  al::Vec3d equilibrium = {0, 0, 0};
+  al::Vec3d displacement = {0, 0, 0};
+  al::Vec3d prevDisplacement = {0, 0, 0};
+
+  std::string particleName;
+
+  gam::Sine<> oscillator;
+  gam::Sine<> FM;
+  gam::Sine<> bell;
+  gam::Biquad<> Lop;
+  float tuningRatio = 1;
+  float freq;
+  double bellEnv;
+  bool zeroTrigger[3] = {0, 0, 0};
+};
+
+// to do, add 3rd dimension
+struct ParticleNetwork {
+ public:
+  ParticleNetwork(unsigned int x = 4, unsigned int y = 1) {
+    nX = x;
+    nY = y;
+    particles.clear();
+    particles.resize(nX + 2);
+    for (int y = 0; y <= nX + 1; y++) particles[y].resize(nY + 2);
+  }
+
+  Particle &operator()(int x, int y) { return particles[x][y]; }
+
+  void resize(unsigned int newSizeX, unsigned int newSizeY) {
+    nX = newSizeX;
+    nY = newSizeY;
+    particles.clear();
+    particles.resize(nX + 2);
+    for (int y = 0; y <= nX + 1; y++) particles[y].resize(nY + 2);
+
+    xSprings.clear();
+    ySprings.clear();
+
+    springLength = 1.0f / (std::max(nX, nY) + 1);
+
+    particleMesh.reset();
+    addIcosphere(particleMesh, springLength / 5, 4);
+    particleMesh.generateNormals();
+
+    for (int x = 0; x <= nX + 1; x++) {
+      for (int y = 0; y <= nY + 1; y++) {
+        particles[x][y].setParticleMesh(particleMesh);
+        particles[x][y].setEquilibrium(
+          al::Vec3d((x * springLength) - ((springLength * (nX + 1)) / 2),
+                    (y * springLength) - ((springLength * (nY + 1)) / 2), 0));
+        particles[x][y].resetPos(1, 1, 1);
+        particles[x][y].setParticleName(std::to_string(((y - 1) * nX) + x));
+      }
+    }
+    retune(scale);
+  }
+
+  // Update velocities of a 2-D array of particles
+  void updateVelocities(double step) {
+    int NX = particles.size();
+    int NY = particles[0].size();
+
+    for (int y = 0; y < NY - 1; y++)
+      for (int x = 0; x < NX - 1; x++) {
+        std::array<double, 3> forcesX = calculateForces(particles[x][y], particles[x + 1][y],
+                                                        springLength, xSprings[x]->k, freedom);
+
+        if (NY > 3) {  // only calculate Y forces if 2d array (NY > 1 + 2 boundary particles)
+          std::array<double, 3> forcesY = calculateForces(particles[x][y], particles[x][y + 1],
+                                                          springLength, ySprings[y]->k, freedom);
+          for (int j = 0; j < 3; j++) {
+            particles[x][y].addAcceleration(j, forcesY[j]);  // force due to above particle spring
+            particles[x][y + 1].addAcceleration(
+              j, forcesY[j] * -1);  // opposite force on above particle
+          }
+        }
+
+        particles[x][y].addAcceleration(forcesX[0], forcesX[1],
+                                        forcesX[2]);  // force due to right particle spring
+        particles[x + 1][y].addAcceleration(forcesX[0] * -1, forcesX[1] * -1,
+                                            forcesX[2] * -1);  // opposite force on right particle
+
+        particles[x][y].calculateAcceleration(mass, damping);
+        particles[x][y].applyAcceleration(step);  // update velocity according to time step
+      }
+
+    for (int x = 0; x < NX; x++)  // set all acceleration to zero
+      for (int y = 0; y < NY; y++) particles[x][y].resetAcceleration();
+  }
+
+  std::array<double, 3> calculateForces(Particle &first, Particle &second, double springLength,
+                                        double k, std::array<bool, 3> freedom) {
+    std::array<double, 3> forceComponents = {0, 0, 0};  // Force Components
+    if (!freedom[0] && !freedom[1] && !freedom[2]) {
+      first.resetVelocity(1, 1, 1);
+      return forceComponents;  // return no force if no axis activated
+    }
+
+    al::Vec3d diff = (second.getDisplacement() - first.getDisplacement()) * k;
+
+    if (freedom[0]) forceComponents[0] = diff.x;
+    if (freedom[1]) forceComponents[1] = diff.y;
+    if (freedom[2]) forceComponents[2] = diff.z;
+    return forceComponents;
+  }
+
+  void retune(std::vector<float> newScale) {
+    scale = newScale;
+    int step = 0;
+    int octave = 1;
+    for (int x = 1; x <= nX; x++) {
+      for (int y = 1; y <= nY; y++) {
+        if (step == scale.size() - 1) {
+          octave *= scale[scale.size() - 1];
+          step = 0;
+        }
+        particles[x][y].setTuningRatio(scale[step] * octave);
+        particles[x][y].setFreq(scale[step] * octave * tuningRoot);
+        step++;
+      }
+    }
+  }
+
+  void retune() {
+    for (int x = 1; x <= nX; x++) {
+      for (int y = 1; y <= nY; y++) {
+        particles[x][y].setFreq(particles[x][y].getTuningRatio() * tuningRoot);
+      }
+    }
+  }
+
+  void setTuningRoot(float newRoot) { tuningRoot = newRoot; }
+
+  int sizeX() { return nX; }
+  int sizeY() { return nY; }
+
+  void setFreedom(bool x, bool y, bool z) { freedom = {x, y, z}; }
+
+  void setMass(float newMass) { mass = newMass; }
+  void setDamping(float newDamping) { damping = newDamping; }
+
+  std::vector<std::vector<Particle>> particles;
+  double springLength;    // Spacing between particles
+  al::Mesh particleMesh;  // mesh for drawing particle
+  std::vector<Spring *> xSprings;
+  std::vector<Spring *> ySprings;
+
+ private:
+  float tuningRoot;
+  std::vector<float> scale;
+  int nX;
+  int nY;
+  std::array<bool, 3> freedom{0, 0, 0};
+  float mass;
+  float damping;
 };
 
 class RingBuffer {
  public:
   RingBuffer(unsigned maxSize) : mMaxSize(maxSize) {
     mBuffer.resize(mMaxSize);
-    mTail = -1;
+    mTail = 0;
     mPrevSample = 0;
   }
 
@@ -160,9 +421,9 @@ class RingBuffer {
     mMutex.unlock();
   }
 
-  unsigned getTail() const { return mTail; }
+  int getTail() const { return mTail; }
 
-  float at(unsigned index) {
+  float at(int index) {
     if (index >= mMaxSize) {
       std::cerr << "RingBuffer index out of range." << std::endl;
       index = index % mMaxSize;

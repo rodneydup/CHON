@@ -32,7 +32,6 @@ if(UNIX AND NOT APPLE)
 endif()
 
 set(includes
-src/calculations.hpp
 src/structs.hpp
 src/CHON.hpp
 src/Roboto-Medium.hpp
