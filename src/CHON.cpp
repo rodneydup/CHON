@@ -228,18 +228,10 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
     particleNetwork.setMass(mass);
     particleNetwork.setDamping(damping);
 
-    particleNetwork.updateVelocities(dt);
+    particleNetwork.update(dt);
 
     for (int x = 1; x <= particleNetwork.sizeX(); x++)
-      for (int y = 1; y <= particleNetwork.sizeY(); y++) {  // animate stuff
-        if (particleNetwork(x, y).particle.selected) {
-          particleNetwork(x, y).resetVelocity(1, 1, 1);
-        } else {  // increment positions according to velocity
-          particleNetwork(x, y).velocityStep();
-        }
-
-        particleNetwork(x, y).updateDisplacement();
-
+      for (int y = 1; y <= particleNetwork.sizeY(); y++) {
         if (DrawGraph) {  // updating the 2d displacement graph
           particleNetwork(x, y).graphMesh.translate(-w / (60 * graphSpeed), 0,
                                                     0);  // move previous graph data left
