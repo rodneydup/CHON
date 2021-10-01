@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=CHON
+Comment=Launch CHON
+Exec=CHON
+Icon=/usr/share/pixmaps/CHON.png
+Terminal=false
+Type=Application
+Categories=Audio;Music;Science;
+Name[en_US]=CHON

@@ -71,7 +71,7 @@ struct Spring {
     bundle.name(name);
     bundle << k;
   }
-  al::Parameter k{"Stiffness", "physics", 100.0f, "", 1.0f, 100.0f};
+  al::Parameter k{"Stiffness", "physics", 1.0f, "", 1.0f, 50.0f};
   al::ParameterBundle bundle;
 };
 
@@ -81,6 +81,7 @@ struct Particle {
     Lop.type(gam::FilterType(gam::LOW_PASS));
     Lop.set(400, 1);
     freq = 0;
+    amplitude = 1;
     oscillator.freq(freq);
     bell.freq(freq);
     bellEnv = 0;
@@ -130,25 +131,6 @@ struct Particle {
 
   al::Vec3d getDisplacement() { return displacement; }
 
-  void setNextPos(double step) {
-    nextPosition =
-      particle.pose.get().pos() + (velocity * step) + (acceleration * step * step * 0.5);
-  }
-
-  void addToNextAccel(al::Vec3d force) { nextAcceleration += force; }
-
-  void setNextVelocity(float step) {
-    nextVelocity = velocity + (acceleration + nextAcceleration) * (step * 0.5);
-  }
-
-  void update() {
-    particle.pose.setPos(nextPosition);
-    velocity = nextVelocity;
-    acceleration = nextAcceleration;
-    nextAcceleration = {0, 0, 0};
-    updateDisplacement();
-  }
-
   void resetVelocity(bool x, bool y, bool z) {
     if (x) velocity.x = 0;
     if (y) velocity.y = 0;
@@ -160,19 +142,28 @@ struct Particle {
     velocity[1] += y;
     velocity[2] += z;
   }
-  void addVelocity(al::Vec3d newVelocity) { velocity += newVelocity; }
 
-  // add acceleration to one axis
+  void velocityStep() {
+    al::Vec3d position = {this->x() + this->velocity[0], this->y() + this->velocity[1],
+                          this->z() + this->velocity[2]};
+    particle.pose.setPos(position);
+  }
+
+  // add acceleration to all axes
+  void addAcceleration(double x = 0, double y = 0, double z = 0) {
+    acceleration[0] += x;
+    acceleration[1] += y;
+    acceleration[2] += z;
+  }
+  void applyAcceleration(double step) { velocity += acceleration * step; }
+
+  // add acceleration to an axis
   // axis: 0 for x, 1 for y, 2 for z
   void addAcceleration(int axis, double val) { acceleration[axis] += val; }
 
   void calculateAcceleration(float m, float b) {
-    nextAcceleration = (nextAcceleration / m) - (velocity * b);  // (kx / m) - vb
+    acceleration = (acceleration / m) - (velocity * b);  // (kx / m) - vb
   }
-
-  al::Vec3d getAcceleration() { return acceleration; }
-
-  void setAcceleration(al::Vec3d newAcceleration) { acceleration = newAcceleration; }
 
   void resetAcceleration() { acceleration = {0, 0, 0}; }
 
@@ -185,7 +176,12 @@ struct Particle {
     bell.freq(freq);
     oscillator.freq(freq);
   }
+
   float getFreq() { return freq; }
+
+  void setAmplitude(float newAmplitude) { amplitude = newAmplitude; }
+
+  float getAmplitude() { return amplitude; }
 
   void setFMModFreq(float fmMultiplier) { FM.freq(freq * fmMultiplier); }
 
@@ -227,12 +223,12 @@ struct Particle {
 
   double bellProcess() {
     if (bellEnv > 0) bellEnv -= 0.00005;
-    return bell() * Lop(this->bellEnv);
+    return bell() * Lop(this->bellEnv) * amplitude;
   }
 
   void draw(al::Graphics &g) { particle.drawMesh(g); }
 
-  double processOscillator() { return oscillator(); }
+  double processOscillator() { return oscillator() * amplitude; }
 
   bool pickEvent(al::PickEvent e) { particle.event(e); }
 
@@ -251,10 +247,6 @@ struct Particle {
  private:
   al::Vec3d velocity = {0, 0, 0};
   al::Vec3d acceleration = {0, 0, 0};
-  al::Vec3d nextVelocity = {0, 0, 0};
-  al::Vec3d nextAcceleration = {0, 0, 0};
-  al::Vec3d nextPosition = {0, 0, 0};
-
   al::Vec3d equilibrium = {0, 0, 0};
   al::Vec3d displacement = {0, 0, 0};
   al::Vec3d prevDisplacement = {0, 0, 0};
@@ -267,6 +259,7 @@ struct Particle {
   gam::Biquad<> Lop;
   float tuningRatio = 1;
   float freq;
+  float amplitude;
   double bellEnv;
   bool zeroTrigger[3] = {0, 0, 0};
 };
@@ -313,52 +306,53 @@ struct ParticleNetwork {
     retune(scale);
   }
 
-  al::Vec3d applyForces(Particle particleOne, Particle particleTwo, float k) {
-    al::Vec3d forceComponents = {0, 0, 0};  // Force Components
-    if (!freedom[0] && !freedom[1] && !freedom[2]) {
-      particleOne.resetVelocity(1, 1, 1);
-      return forceComponents;  // return no force if no axis activated
-    }
-
-    al::Vec3d force = (particleTwo.getDisplacement() - particleOne.getDisplacement()) * k;
-
-    if (freedom[0]) forceComponents[0] = force.x;
-    if (freedom[1]) forceComponents[1] = force.y;
-    if (freedom[2]) forceComponents[2] = force.z;
-    return forceComponents;
-  }
-
-  // Update particle physics
-  void update(double step) {
+  // Update velocities of a 2-D array of particles
+  void updateVelocities(double step) {
     int NX = particles.size();
     int NY = particles[0].size();
 
-    for (int y = 1; y < NY - 1; y++)
-      for (int x = 1; x < NX - 1; x++) particles[x][y].setNextPos(step);  // update position
-
     for (int y = 0; y < NY - 1; y++)
       for (int x = 0; x < NX - 1; x++) {
-        al::Vec3d forcesX =
-          applyForces(particles[x][y], particles[x + 1][y],
-                      xSprings[x]->k);            // get forces between this spring and the next
-        particles[x][y].addToNextAccel(forcesX);  // force due to right particle spring
-        particles[x + 1][y].addToNextAccel(forcesX * -1);  // opposite force on right particle
+        std::array<double, 3> forcesX = calculateForces(particles[x][y], particles[x + 1][y],
+                                                        springLength, xSprings[x]->k, freedom);
 
         if (NY > 3) {  // only calculate Y forces if 2d array (NY > 1 + 2 boundary particles)
-          al::Vec3d forcesY = applyForces(particles[x][y], particles[x][y + 1], ySprings[y]->k);
-          particles[x][y].addToNextAccel(forcesY);           // force due to above particle spring
-          particles[x][y + 1].addToNextAccel(forcesY * -1);  // opposite force on above particle
+          std::array<double, 3> forcesY = calculateForces(particles[x][y], particles[x][y + 1],
+                                                          springLength, ySprings[y]->k, freedom);
+          for (int j = 0; j < 3; j++) {
+            particles[x][y].addAcceleration(j, forcesY[j]);  // force due to above particle spring
+            particles[x][y + 1].addAcceleration(
+              j, forcesY[j] * -1);  // opposite force on above particle
+          }
         }
 
+        particles[x][y].addAcceleration(forcesX[0], forcesX[1],
+                                        forcesX[2]);  // force due to right particle spring
+        particles[x + 1][y].addAcceleration(forcesX[0] * -1, forcesX[1] * -1,
+                                            forcesX[2] * -1);  // opposite force on right particle
+
         particles[x][y].calculateAcceleration(mass, damping);
+        particles[x][y].applyAcceleration(step);  // update velocity according to time step
       }
 
-    for (int y = 1; y < NY - 1; y++)
-      for (int x = 1; x < NX - 1; x++) particles[x][y].setNextVelocity(step);
+    for (int x = 0; x < NX; x++)  // set all acceleration to zero
+      for (int y = 0; y < NY; y++) particles[x][y].resetAcceleration();
+  }
 
-    for (int y = 1; y < NY - 1; y++)
-      for (int x = 1; x < NX - 1; x++)
-        if (!particles[x][y].particle.selected) particles[x][y].update();
+  std::array<double, 3> calculateForces(Particle &first, Particle &second, double springLength,
+                                        double k, std::array<bool, 3> freedom) {
+    std::array<double, 3> forceComponents = {0, 0, 0};  // Force Components
+    if (!freedom[0] && !freedom[1] && !freedom[2]) {
+      first.resetVelocity(1, 1, 1);
+      return forceComponents;  // return no force if no axis activated
+    }
+
+    al::Vec3d diff = (second.getDisplacement() - first.getDisplacement()) * k;
+
+    if (freedom[0]) forceComponents[0] = diff.x;
+    if (freedom[1]) forceComponents[1] = diff.y;
+    if (freedom[2]) forceComponents[2] = diff.z;
+    return forceComponents;
   }
 
   void retune(std::vector<float> newScale) {
