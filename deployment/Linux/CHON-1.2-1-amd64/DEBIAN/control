@@ -1,0 +1,9 @@
+Package: CHON
+Architecture: amd64
+Section: sound
+Priority: optional
+Version:1.2-1
+Maintainer:Rodney DuPlessis <rodney@rodneyduplessis.com>
+Depends:libsndfile1, libc6
+Homepage: https://github.com/rodneydup/CHON
+Description: This package provides CHON, an application for generating sonic gestures and control signals based on the physical simulation of a coupled harmonic oscillator network.

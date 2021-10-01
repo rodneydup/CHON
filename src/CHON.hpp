@@ -78,6 +78,7 @@ class CHON : public App {
   Particle *rightClickedParticle;
   bool isRightClickedParticle = false;
   float rightClickedFreq = 0;
+  float rightClickedAmplitude = 1;
 
   ParticleNetwork particleNetwork{xParticles, yParticles};  // 2D vector containing our Particles
 
