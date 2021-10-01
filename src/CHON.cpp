@@ -81,7 +81,6 @@ void CHON::onInit() {  // Called on app start
         for (int x = 1; x <= particleNetwork.sizeX(); x++) {
           for (int y = 1; y <= particleNetwork.sizeY(); y++) {
             particleNetwork(x, y).setTuningRatio(x * y);
-            particleNetwork(x, y).setAmplitude(1.0f / x * y);
           }
         }
         particleNetwork.retune();
@@ -255,8 +254,8 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
         if (am) {  // copy displacement values to AM synthesis engine
           float val =
             particleNetwork(x, y).getDisplacement()[amAxis] / particleNetwork.springLength;
-          val = val > 1 ? 1 : val;
-          val = val < -1 ? -1 : val;
+          val > 1 ? 1 : val;
+          val < -1 ? -1 : val;
           particleNetwork(x, y).amSmooth.setTarget(val);
         }
 
@@ -505,16 +504,13 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     if (isRightClickedParticle) {
       ImGui::OpenPopup("rightClickParticle");
       rightClickedFreq = rightClickedParticle->getFreq();
-      rightClickedAmplitude = rightClickedParticle->getAmplitude();
       isRightClickedParticle = false;
     }
-    ImGui::SetNextWindowSize(ImVec2(180, 0));
+    ImGui::SetNextWindowSize(ImVec2(180, 40));
     if (ImGui::BeginPopup("rightClickParticle")) {
       ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() - 35);
       if (ImGui::InputFloat("Freq", &rightClickedFreq, 1, 10, "%.3f"))
         rightClickedParticle->setFreq(rightClickedFreq);
-      if (ImGui::SliderFloat("Vol", &rightClickedAmplitude, 0, 1, "%.3f"))
-        rightClickedParticle->setAmplitude(rightClickedAmplitude);
       ImGui::PopItemWidth();
       ImGui::EndPopup();
     }
@@ -692,9 +688,8 @@ bool CHON::onMouseDown(const Mouse &m) {
   Rayd r = getPickRay(m.x(), m.y());
   for (int x = 1; x <= particleNetwork.sizeX(); x++)
     for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-      if (m.button() == 0)
-        particleNetwork(x, y).particle.event(PickEvent(Pick, r));
-      else if (particleNetwork(x, y).particle.hover && m.button() == 2) {
+      particleNetwork(x, y).particle.event(PickEvent(Pick, r));
+      if (particleNetwork(x, y).particle.hover && m.button() == 2) {
         isRightClickedParticle = true;
         rightClickedParticle = &particleNetwork(x, y);
       }

@@ -81,7 +81,6 @@ struct Particle {
     Lop.type(gam::FilterType(gam::LOW_PASS));
     Lop.set(400, 1);
     freq = 0;
-    amplitude = 1;
     oscillator.freq(freq);
     bell.freq(freq);
     bellEnv = 0;
@@ -186,12 +185,7 @@ struct Particle {
     bell.freq(freq);
     oscillator.freq(freq);
   }
-
   float getFreq() { return freq; }
-
-  void setAmplitude(float newAmplitude) { amplitude = newAmplitude; }
-
-  float getAmplitude() { return amplitude; }
 
   void setFMModFreq(float fmMultiplier) { FM.freq(freq * fmMultiplier); }
 
@@ -233,12 +227,12 @@ struct Particle {
 
   double bellProcess() {
     if (bellEnv > 0) bellEnv -= 0.00005;
-    return bell() * Lop(this->bellEnv) * amplitude;
+    return bell() * Lop(this->bellEnv);
   }
 
   void draw(al::Graphics &g) { particle.drawMesh(g); }
 
-  double processOscillator() { return oscillator() * amplitude; }
+  double processOscillator() { return oscillator(); }
 
   bool pickEvent(al::PickEvent e) { particle.event(e); }
 
@@ -273,7 +267,6 @@ struct Particle {
   gam::Biquad<> Lop;
   float tuningRatio = 1;
   float freq;
-  float amplitude;
   double bellEnv;
   bool zeroTrigger[3] = {0, 0, 0};
 };
