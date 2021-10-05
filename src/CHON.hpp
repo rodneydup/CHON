@@ -79,6 +79,7 @@ class CHON : public App {
   bool isRightClickedParticle = false;
   float rightClickedFreq = 0;
   float rightClickedAmplitude = 1;
+  int rightClickedStep = 1;
 
   ParticleNetwork particleNetwork{xParticles, yParticles};  // 2D vector containing our Particles
 
@@ -151,7 +152,6 @@ class CHON : public App {
   /*
   Scales
   */
-  std::vector<float> otSeries{1.000000};
   std::vector<float> majScale{1.000000, 1.125000, 1.250000, 1.333333,
                               1.500000, 1.666667, 1.875000, 2.000000};
   std::vector<float> pentScale{1.000000, 1.125000, 1.250000, 1.500000, 1.666667, 2.000000};

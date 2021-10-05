@@ -171,6 +171,10 @@ struct Particle {
 
   float getTuningRatio() { return tuningRatio; }
 
+  void setScaleStep(int newStep) { scaleStep = newStep; }
+
+  int getScaleStep() { return scaleStep; }
+
   void setFreq(float newFreq) {
     freq = newFreq;
     bell.freq(freq);
@@ -258,6 +262,7 @@ struct Particle {
   gam::Sine<> bell;
   gam::Biquad<> Lop;
   float tuningRatio = 1;
+  int scaleStep = 0;
   float freq;
   float amplitude;
   double bellEnv;
@@ -361,12 +366,13 @@ struct ParticleNetwork {
     int octave = 1;
     for (int x = 1; x <= nX; x++) {
       for (int y = 1; y <= nY; y++) {
-        if (step == scale.size() - 1) {
-          octave *= scale[scale.size() - 1];
-          step = 0;
-        }
-        particles[x][y].setTuningRatio(scale[step] * octave);
-        particles[x][y].setFreq(scale[step] * octave * tuningRoot);
+        // if (step == scale.size() - 1) {
+        //   octave *= scale[scale.size() - 1];
+        //   step = 0;
+        // }
+        particles[x][y].setScaleStep(step);
+        particles[x][y].setTuningRatio(getScaleRatio(step));
+        particles[x][y].setFreq(particles[x][y].getTuningRatio() * tuningRoot);
         step++;
       }
     }
@@ -381,6 +387,23 @@ struct ParticleNetwork {
   }
 
   void setTuningRoot(float newRoot) { tuningRoot = newRoot; }
+
+  float getTuningRoot() { return tuningRoot; }
+
+  float getScaleRatio(int stepNum) {
+    float octave = 1;
+    octave = pow(scale[scale.size() - 1], floor((float)stepNum / (scale.size() - 1.0f)));
+    if (stepNum < 0) {
+      while (stepNum < 0) {
+        stepNum += scale.size() - 1;
+      }
+      std::cout << stepNum << " x " << octave << std::endl;
+      return ((octave * scale[stepNum]));
+    } else {
+      stepNum = stepNum % (scale.size() - 1);
+      return scale[stepNum] * octave;
+    }
+  }
 
   int sizeX() { return nX; }
   int sizeY() { return nY; }

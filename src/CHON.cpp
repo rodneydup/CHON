@@ -514,13 +514,20 @@ void CHON::onDraw(Graphics &g) {  // Draw function
       ImGui::OpenPopup("rightClickParticle");
       rightClickedFreq = rightClickedParticle->getFreq();
       rightClickedAmplitude = rightClickedParticle->getAmplitude();
+      rightClickedStep = rightClickedParticle->getScaleStep();
       isRightClickedParticle = false;
     }
-    ImGui::SetNextWindowSize(ImVec2(180, 0));
+    ImGui::SetNextWindowSize(ImVec2(250, 0));
     if (ImGui::BeginPopup("rightClickParticle")) {
       ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() - 35);
       if (ImGui::InputFloat("Freq", &rightClickedFreq, 1, 10, "%.3f"))
         rightClickedParticle->setFreq(rightClickedFreq);
+      if (ImGui::InputInt("Scale Step", &rightClickedStep, 1, 10)) {
+        rightClickedParticle->setScaleStep(rightClickedStep);
+        rightClickedParticle->setTuningRatio(particleNetwork.getScaleRatio(rightClickedStep));
+        rightClickedParticle->setFreq(rightClickedParticle->getTuningRatio() *
+                                      particleNetwork.getTuningRoot());
+      }
       if (ImGui::SliderFloat("Vol", &rightClickedAmplitude, 0, 1, "%.3f"))
         rightClickedParticle->setAmplitude(rightClickedAmplitude);
       ImGui::PopItemWidth();
@@ -556,7 +563,7 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
               }
               double sampleToAdd =
                 particleNetwork(x, y).processOscillator() * additiveVolume;  // scale
-              sampleToAdd /= (x * y) + 1.0;  // scale for higher pitches
+              sampleToAdd /= 5.0;  // scale for higher pitches
               if (am) {
                 sampleToAdd *= particleNetwork(x, y).amSmooth.process();  // amplitude modulation
               }
@@ -742,16 +749,16 @@ bool CHON::onKeyDown(Keyboard const &k) {
       srand(std::time(0));
       for (int x = 1; x <= particleNetwork.sizeX(); x++)
         for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-          particleNetwork(x, y).addVelocity((float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 5,
-                                            (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 5,
-                                            (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 5);
+          particleNetwork(x, y).addVelocity((float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 10,
+                                            (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 10,
+                                            (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 10);
         }
       return false;
     case Keyboard::UP:
-      nav().moveU(0.02);
+      nav().moveF(0.02);
       return false;
     case Keyboard::DOWN:
-      nav().moveU(-0.02);
+      nav().moveF(-0.02);
       return false;
     case Keyboard::LEFT:
       nav().spinU(0.02);
@@ -768,10 +775,10 @@ bool CHON::onKeyDown(Keyboard const &k) {
 bool CHON::onKeyUp(Keyboard const &k) {
   switch (k.key()) {
     case Keyboard::UP:
-      nav().moveU(0);
+      nav().moveF(0);
       return false;
     case Keyboard::DOWN:
-      nav().moveU(0);
+      nav().moveF(0);
       return false;
     case Keyboard::LEFT:
       nav().spinU(0);
