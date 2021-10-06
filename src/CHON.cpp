@@ -509,6 +509,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     if (ImGui::CollapsingHeader("Additive Synth")) {
       ParameterGUI::drawParameterBool(&additiveSynthOn);
       ParameterGUI::drawParameter(&additiveVolume);
+      ImGui::Indent(20);
       if (ImGui::CollapsingHeader("FM")) {
         ParameterGUI::drawParameterBool(&fm);
         ImGui::SameLine();
@@ -525,6 +526,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
           ParameterGUI::drawMenu(&amAxis);
         }
       }
+      ImGui::Indent(-20);
     }
     if (ImGui::CollapsingHeader("Reverb")) {
       ParameterGUI::drawParameterBool(&reverbOn);
@@ -618,9 +620,9 @@ void CHON::onDraw(Graphics &g) {  // Draw function
       rightClickedStep = rightClickedParticle->getScaleStep();
       isRightClickedParticle = false;
     }
-    ImGui::SetNextWindowSize(ImVec2(250, 0));
+    ImGui::SetNextWindowSize(ImVec2(280, 0));
     if (ImGui::BeginPopup("rightClickParticle")) {
-      ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() - 35);
+      ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() - 75);
       if (ImGui::InputFloat("Freq", &rightClickedFreq, 1, 10, "%.3f"))
         rightClickedParticle->setFreq(rightClickedFreq);
       if (ImGui::InputInt("Scale Step", &rightClickedStep, 1, 10)) {
@@ -629,6 +631,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
         rightClickedParticle->setFreq(rightClickedParticle->getTuningRatio() *
                                       particleNetwork.getTuningRoot());
       }
+      ImGui::Separator();
       if (ImGui::SliderFloat("Vol", &rightClickedAmplitude, 0, 1, "%.3f"))
         rightClickedParticle->setAmplitude(rightClickedAmplitude);
       ImGui::PopItemWidth();

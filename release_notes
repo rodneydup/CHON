@@ -1,0 +1,10 @@
+Version 1.2
+
+New Features
+- Revamped tuning system
+    - Additive synth can now be retuned
+    - Each individual particle can be retuned manually by right clicking on it (see below)
+- Added a "Stereo" sound feature that spatializes the particles in stereo according to their position.
+- User can now right click particles to change some parameters
+- Added a sound output recorder under Audio window
+- New functionality: drive the particles with audio input
