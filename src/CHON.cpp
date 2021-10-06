@@ -14,6 +14,73 @@ void CHON::onInit() {  // Called on app start
   std::cout << "onInit()" << std::endl;
   title("CHON");
 
+  execDir = al::File::directory(getExecutablePath());
+  userPath = getUserHomePath();
+#ifdef __APPLE__  // Uses userPath
+  configFile = consts::DEFAULT_CONFIG_FILE;
+  presetsPath = consts::DEFAULT_PRESETS_PATH;
+  midiPresetsPath = consts::DEFAULT_MIDI_PRESETS_PATH;
+  oscPresetsPath = consts::DEFAULT_OSC_PRESETS_PATH;
+
+  samplePresetsPath = consts::DEFAULT_SAMPLE_PRESETS_PATH;
+
+  execDir = util::getContentPath_OSX(execDir);
+  al::Dir::make(userPath + consts::PERSISTENT_DATA_PATH);
+  al::Dir::make(userPath + consts::DEFAULT_PRESETS_PATH);
+  al::Dir::make(userPath + consts::DEFAULT_SOUND_OUTPUT_PATH);
+  al::Dir::make(userPath + consts::DEFAULT_CONFIG_PATH);
+  opener = "open ";
+#endif
+
+#ifdef __linux__
+  std::string configPath = "/.config/CHON";
+  // use xdg directories if available
+  if (getenv("$XDG_CONFIG_HOME") != NULL) {
+    configPath = getenv("$XDG_CONFIG_HOME") + std::string("/CHON");
+  }
+
+  configFile = configPath + "/config/config.json";
+  presetsPath = configPath + "/presets";
+
+  // create config directories if needed
+  al::Dir::make(userPath + configPath + "/config");
+  al::Dir::make(userPath + presetsPath);
+#endif
+
+#ifdef _WIN32
+  configFile = consts::DEFAULT_CONFIG_FILE;
+  presetsPath = consts::DEFAULT_PRESETS_PATH;
+  midiPresetsPath = consts::DEFAULT_MIDI_PRESETS_PATH;
+  oscPresetsPath = consts::DEFAULT_OSC_PRESETS_PATH;
+  samplePresetsPath = consts::DEFAULT_SAMPLE_PRESETS_PATH;
+
+  al::Dir::make(userPath + consts::PERSISTENT_DATA_PATH);
+  al::Dir::make(userPath + consts::DEFAULT_PRESETS_PATH);
+  al::Dir::make(userPath + consts::DEFAULT_SOUND_OUTPUT_PATH);
+  al::Dir::make(userPath + consts::DEFAULT_CONFIG_PATH);
+#endif
+
+  initJsonConfig();
+  json config = jsonReadConfig();
+  setSoundOutputPath(config.at(consts::SOUND_OUTPUT_PATH_KEY));
+  setAudioSettings(config.at(consts::SAMPLE_RATE_KEY));
+  setWindowDimensions(config.at(consts::WINDOW_WIDTH_KEY), config.at(consts::WINDOW_HEIGHT_KEY));
+  setFirstLaunch(config.at(consts::IS_FIRST_LAUNCH_KEY));
+  setAudioDevice(config.at(consts::DEFAULT_AUDIO_DEVICE_KEY));
+  setInitFullscreen(false);
+
+  // Set output directory for presets.
+  // Set output directory of recorded files.
+
+  mPresets = std::make_unique<al::PresetHandler>(al::File::conformPathToOS(userPath + presetsPath));
+  auto path = mPresets->buildMapPath("default");  // build default map if it doesn't exist
+  std::ifstream exist(path);
+  if (!exist.good()) {
+    std::ofstream file;
+    file.open(path, std::ios::out);
+    file.close();
+  }
+
   reverb.bandwidth(0.9);  // Low-pass amount on input, in [0,1]
   reverb.damping(0.1);    // High-frequency damping, in [0,1]
   reverb.decay(0.15);     // Tail decay factor, in [0,1]
@@ -107,8 +174,21 @@ void CHON::onInit() {  // Called on app start
       for (int y = 1; y <= particleNetwork.sizeY(); y++)
         particleNetwork(x, y).setFMModFreq(newFMFreq);
   });
-
+  auto a_d = AudioDevice(currentAudioDeviceOut, AudioDevice::OUTPUT);
+  if (!a_d.valid()) {
+    audioIO().deviceOut(-1);
+    currentAudioDeviceOut = AudioDevice::defaultOutput().name();
+    setOutChannels(0, audioIO().channelsOutDevice());
+  } else {
+    audioIO().deviceOut(a_d);
+    setOutChannels(config.at(consts::LEAD_CHANNEL_KEY), audioIO().channelsOutDevice());
+    // TODO, make sure only 2 channels are open corresponding to out channels
+    // audioIO().channelsOut({(int)config.at(consts::LEAD_CHANNEL_KEY),(int)config.at(consts::LEAD_CHANNEL_KEY)
+    // + 1});
+  }
   audioIO().setStreamName("CHON");
+  audioIO().append(mRecorder);
+  audioIO().channelsIn(0);
 }
 
 void CHON::onCreate() {  // Called when graphics context is available
@@ -117,6 +197,9 @@ void CHON::onCreate() {  // Called when graphics context is available
   imguiInit();
   ImGuiIO &io = ImGui::GetIO();
   io.IniFilename = NULL;
+
+  // Set if fullscreen or not.
+  fullScreen(isFullScreen);
 
   chonReset();
 
@@ -228,8 +311,11 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
     particleNetwork.setMass(mass);
     particleNetwork.setDamping(damping);
 
-    particleNetwork.updateVelocities(dt);
-
+    if (dt > 0.5) {
+      std::cerr << "Delta T too high for simulation" << std::endl;
+    } else {
+      particleNetwork.updateVelocities(dt);
+    }
     for (int x = 1; x <= particleNetwork.sizeX(); x++)
       for (int y = 1; y <= particleNetwork.sizeY(); y++) {  // animate stuff
         if (particleNetwork(x, y).particle.selected) {
@@ -453,8 +539,18 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ParameterGUI::beginPanel("Audio", 0, yposition, flags);
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
-    if (ImGui::CollapsingHeader("Audio IO Settings")) {
-      drawAudioIO(&audioIO());
+    if (ImGui::CollapsingHeader("Recorder")) {
+      drawRecorderWidget(&mRecorder, audioIO().framesPerSecond(),
+                         audioIO().channelsOut() <= 1 ? 1 : 2, soundOutput);
+      if (ImGui::Button("Change Output Path")) {
+        result = NFD_PickFolder(NULL, &outPath);
+
+        if (result == NFD_OKAY) {
+          std::string temp = outPath;
+          jsonWriteToConfig(temp, consts::SOUND_OUTPUT_PATH_KEY);
+          setSoundOutputPath(outPath);
+        }
+      }
     }
     if (ImGui::CollapsingHeader("Input")) {
       ParameterGUI::drawParameterBool(&inputOn);
@@ -476,6 +572,11 @@ void CHON::onDraw(Graphics &g) {  // Draw function
       if (inputMode != 2) ParameterGUI::drawParameter(&inputThreshold);
       if (inputMode == 1) ParameterGUI::drawParameterInt(&rmsSize, "");
     }
+
+    if (ImGui::CollapsingHeader("Audio IO Settings")) {
+      drawAudioIO(&audioIO());
+    }
+
     yposition += ImGui::GetWindowHeight();
     ImGui::PopFont();
     ParameterGUI::endPanel();
@@ -951,11 +1052,82 @@ void CHON::drawAudioIO(AudioIO *io) {
   ImGui::PopID();
 }
 
+void CHON::drawRecorderWidget(al::OutputRecorder *recorder, double frameRate, uint32_t numChannels,
+                              std::string directory, uint32_t bufferSize) {
+  struct SoundfileRecorderState {
+    bool recordButton;
+    bool overwriteButton;
+  };
+  static std::map<SoundFileBufferedRecord *, SoundfileRecorderState> stateMap;
+  if (stateMap.find(recorder) == stateMap.end()) {
+    stateMap[recorder] = SoundfileRecorderState{0, false};
+  }
+  SoundfileRecorderState &state = stateMap[recorder];
+  ImGui::PushID(std::to_string((unsigned long)recorder).c_str());
+  ImGui::Text("Output File Name:");
+  static char buf1[64] = "test.wav";
+  ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 10.0f);
+  ImGui::InputText("##Record Name", buf1, 63);
+  ImGui::PopItemWidth();
+
+  if (state.recordButton) {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9, 0.3, 0.3, 1.0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8, 0.5, 0.5, 1.0));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 1.0));
+  }
+  std::string buttonText = state.recordButton ? "Stop" : "Record";
+  bool recordButtonClicked = ImGui::Button(buttonText.c_str());
+  if (state.recordButton) {
+    ImGui::PopStyleColor();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleColor();
+  }
+  if (recordButtonClicked) {
+    state.recordButton = !state.recordButton;
+    if (state.recordButton) {
+      uint32_t ringBufferSize;
+      if (bufferSize == 0) {
+        ringBufferSize = 8192;
+      } else {
+        ringBufferSize = bufferSize * numChannels * 4;
+      }
+      std::string filename = buf1;
+      if (!state.overwriteButton) {
+        int counter = 1;
+        while (File::exists(directory + filename) && counter < 9999) {
+          filename = buf1;
+          int lastDot = filename.find_last_of(".");
+          filename = filename.substr(0, lastDot) + "_" + std::to_string(counter++) +
+                     filename.substr(lastDot);
+        }
+      }
+      if (!recorder->start(directory + filename, frameRate, numChannels, ringBufferSize,
+                           gam::SoundFile::WAV, gam::SoundFile::FLOAT)) {
+        std::cerr << "Error opening file for record" << std::endl;
+      }
+    } else {
+      recorder->close();
+    }
+  }
+  ImGui::SameLine();
+  ImGui::Checkbox("Overwrite", &state.overwriteButton);
+  ImGui::Text("Writing to:");
+  ImGui::TextWrapped("%s", directory.c_str());
+
+  ImGui::PopID();
+}
+
+void CHON::onExit() {
+  jsonWriteToConfig(windowWidth, consts::WINDOW_WIDTH_KEY);
+  jsonWriteToConfig(windowHeight, consts::WINDOW_HEIGHT_KEY);
+  jsonWriteToConfig(isFullScreen, consts::FULLSCREEN_KEY);
+  jsonWriteToConfig(false, consts::IS_FIRST_LAUNCH_KEY);
+}
+
 int main() {
   AudioDevice dev = AudioDevice::defaultOutput();
   dev.print();
   CHON app;
-  app.configureAudio(dev, dev.defaultSampleRate(), 1024, dev.channelsOutMax(), dev.channelsInMax());
   app.start();
   return 0;
 }

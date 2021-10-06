@@ -2,16 +2,17 @@ cmake_minimum_required(VERSION 3.0)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.10" CACHE STRING "Minimum OS X deployment version")
 
 set(APP_NAME CHON)
-project(${APP_NAME} VERSION 1.0
-                    DESCRIPTION "Coupled oscillator signal generator"
+project(${APP_NAME} VERSION 1.2
+                    DESCRIPTION "Coupled Harmonic Oscillator Network"
                     LANGUAGES CXX)
 
 # add allolib as a subdirectory to the project
-add_subdirectory(allolib)
+add_subdirectory(external/allolib)
+add_subdirectory(external/al_ext)
 
-# if (NOT TARGET al_soundfile)
-#   message(FATAL_ERROR "al_soundfile not built. Likely libsndfile not found")
-# endif()
+if (NOT TARGET al_soundfile)
+  message(FATAL_ERROR "al_soundfile not built. Likely libsndfile not found")
+endif()
 
 # Hacky (and fragile way) to move libsndfile-1.dll to bin/Resources
 if(WIN32)
@@ -20,6 +21,11 @@ if(WIN32)
   message("WINDOWS: Attempting to copy sndfile dll to bin/")
   file(COPY ${sndfile_dir}/../bin/libsndfile-1.dll
         DESTINATION ${CMAKE_SOURCE_DIR}/bin)
+endif()
+
+# OSX library needed for native file dialog.
+if(APPLE)
+  find_library(AppKit Appkit)
 endif()
 
 # Linux library needed for native file dialog.
@@ -35,28 +41,31 @@ set(includes
 src/structs.hpp
 src/CHON.hpp
 src/Roboto-Medium.hpp
+src/consts.hpp
 )
 
 set(srcs
 src/CHON.cpp
 )
 
-add_library(chonLib
+
+set(LIB_NAME chonLib)
+add_library(${LIB_NAME}
   STATIC 
     ${includes}
     ${srcs}
 )
 
 
-target_link_libraries(chonLib PUBLIC 
+target_link_libraries(${LIB_NAME} PUBLIC 
   al 
 )
 
-target_include_directories(chonLib PRIVATE 
-  ${CMAKE_SOURCE_DIR}/allolib
+target_include_directories(${LIB_NAME} PRIVATE 
+  ${CMAKE_SOURCE_DIR}/external
 )
 
-set_target_properties(chonLib PROPERTIES
+set_target_properties(${LIB_NAME} PROPERTIES
   CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON
 )
@@ -64,7 +73,7 @@ set_target_properties(chonLib PROPERTIES
 # bunch of stuff for packaging MacOS Apps
 if(APPLE)
   find_library(AppKit Appkit)
-  target_link_libraries(chonLib PUBLIC ${Appkit})
+  target_link_libraries(${LIB_NAME} PUBLIC ${Appkit})
 
   set(RESOURCE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/bin/CHON.app/Contents/Resources")
   set(CMAKE_MACOSX_RPATH 1)
@@ -80,37 +89,38 @@ if(APPLE)
     "libsndfile"
   )
 
-foreach(RESOURCE_DIR_NAME ${RESOURCE_LIST})
-  SET(RESOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deployment/externalResources/${RESOURCE_DIR_NAME}")
-  if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    file(GLOB CHILDREN RELATIVE "${RESOURCE_DIR}" ${RESOURCE_DIR}/*)
-    foreach(CHILD ${CHILDREN})
-      IF(IS_DIRECTORY "${RESOURCE_DIR}/${CHILD}")
-        # be wary of .DS_Store files. glob them out by using [A-Za-z]*.*
-        FILE(GLOB RESOURCE_DIR_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${RESOURCE_DIR}/${CHILD}/[A-Za-z]*.*")
-        SET_SOURCE_FILES_PROPERTIES(
-          ${RESOURCE_DIR_FILES}
-          PROPERTIES MACOSX_PACKAGE_LOCATION Resources/${RESOURCE_DIR_NAME}/${CHILD}
-        )
-        SET(RESOURCE_FILES ${RESOURCE_FILES} "deployment/externalResources/${RESOURCE_DIR_FILES}")
-      ELSEIF(NOT ${CHILD} MATCHES "\\.DS_Store|.*\\.am")
-        SET_SOURCE_FILES_PROPERTIES(
-          "${RESOURCE_DIR}/${CHILD}"
-          PROPERTIES MACOSX_PACKAGE_LOCATION Resources/${RESOURCE_DIR_NAME}
-        )
-        SET(RESOURCE_FILES ${RESOURCE_FILES} "deployment/externalResources/${RESOURCE_DIR_NAME}/${CHILD}")
-      ENDIF()
+  foreach(RESOURCE_DIR_NAME ${RESOURCE_LIST})
+    SET(RESOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deployment/externalResources/${RESOURCE_DIR_NAME}")
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+      file(GLOB CHILDREN RELATIVE "${RESOURCE_DIR}" ${RESOURCE_DIR}/*)
+      foreach(CHILD ${CHILDREN})
+        IF(IS_DIRECTORY "${RESOURCE_DIR}/${CHILD}")
+          # be wary of .DS_Store files. glob them out by using [A-Za-z]*.*
+          FILE(GLOB RESOURCE_DIR_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${RESOURCE_DIR}/${CHILD}/[A-Za-z]*.*")
+          SET_SOURCE_FILES_PROPERTIES(
+            ${RESOURCE_DIR_FILES}
+            PROPERTIES MACOSX_PACKAGE_LOCATION Resources/${RESOURCE_DIR_NAME}/${CHILD}
+          )
+          SET(RESOURCE_FILES ${RESOURCE_FILES} "deployment/externalResources/${RESOURCE_DIR_FILES}")
+        ELSEIF(NOT ${CHILD} MATCHES "\\.DS_Store|.*\\.am")
+          SET_SOURCE_FILES_PROPERTIES(
+            "${RESOURCE_DIR}/${CHILD}"
+            PROPERTIES MACOSX_PACKAGE_LOCATION Resources/${RESOURCE_DIR_NAME}
+          )
+          SET(RESOURCE_FILES ${RESOURCE_FILES} "deployment/externalResources/${RESOURCE_DIR_NAME}/${CHILD}")
+        ENDIF()
+    endforeach()
+  else(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") #WORK ON
+    INSTALL( DIRECTORY ${RESOURCE_DIR} DESTINATION "${DATA_DIR}" PATTERN "*.am" EXCLUDE)
+  endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   endforeach()
-else(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") #WORK ON
-  INSTALL( DIRECTORY ${RESOURCE_DIR} DESTINATION "${DATA_DIR}" PATTERN "*.am" EXCLUDE)
-endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-endforeach()
 
   add_executable(${APP_NAME} MACOSX_BUNDLE
     src/CHON.cpp
     ${RESOURCE_FILES}
     ${ICON}
   )
+  
 endif(APPLE)
 
 if(WIN32)
@@ -128,18 +138,42 @@ if(UNIX AND NOT APPLE)
 endif()
 
 target_include_directories(${APP_NAME} PRIVATE
-  ${CMAKE_SOURCE_DIR}/allolib
+${CMAKE_SOURCE_DIR}/external
+${CMAKE_SOURCE_DIR}/external/nativefiledialog/src/include
 )
 
-if (EXISTS ${CMAKE_CURRENT_LIST_DIR}/al_ext)
-  message("Buiding extensions in al_ext")
-  add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/al_ext)
-  get_target_property(AL_EXT_LIBRARIES al_ext AL_EXT_LIBRARIES)
-  target_link_libraries(${APP_NAME} PRIVATE ${AL_EXT_LIBRARIES})
-endif()
+find_library(NFD_LIBRARY nfd HINTS 
+  ${CMAKE_SOURCE_DIR}/external/nativefiledialog/build/lib/Release/x64
+)
+
+# if (EXISTS ${CMAKE_CURRENT_LIST_DIR}/al_ext)
+#   message("Buiding extensions in al_ext")
+#   add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/al_ext)
+#   get_target_property(AL_EXT_LIBRARIES al_ext AL_EXT_LIBRARIES)
+#   target_link_libraries(${APP_NAME} PRIVATE ${AL_EXT_LIBRARIES})
+# endif()
 
 # link allolib to project
-target_link_libraries(${APP_NAME} PRIVATE al)
+get_target_property(AL_EXT_LIBRARIES al_ext AL_EXT_LIBRARIES)
+
+target_link_libraries(${APP_NAME} PUBLIC 
+  al 
+  "${AL_EXT_LIBRARIES}"
+  ${NFD_LIBRARY}
+) 
+if(APPLE)
+  target_link_libraries(${APP_NAME} PUBLIC ${Appkit})
+endif()
+
+if(LINUX)
+  target_link_libraries(${APP_NAME} PUBLIC ${GTK3_LIBRARIES})
+endif()
+
+# Link windows libraries.
+if(WIN32)
+  target_link_libraries(${APP_NAME} PUBLIC comctl32)
+endif()
+
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # On macOS if jack is present, RtMidi will link to jack but not provide the
@@ -161,10 +195,10 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
 # Link windows libraries.
 if(WIN32)
-  target_link_libraries(chonLib PUBLIC comctl32)
+  target_link_libraries(${LIB_NAME} PUBLIC comctl32)
 endif()
 
-target_link_libraries(${APP_NAME} PUBLIC chonLib ${LIBRARIES})
+target_link_libraries(${APP_NAME} PUBLIC ${LIB_NAME} ${LIBRARIES})
 
 # binaries are put into the ./bin directory by default
 set_target_properties(${APP_NAME} PROPERTIES

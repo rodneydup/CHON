@@ -1,4 +1,6 @@
+#include "../external/nativefiledialog/src/include/nfd.h"
 #include "./Roboto-Medium.hpp"
+#include "./consts.hpp"
 #include "./structs.hpp"
 #include "Gamma/DFT.h"
 #include "Gamma/Filter.h"
@@ -12,6 +14,29 @@
 #include "al/ui/al_ControlGUI.hpp"
 #include "al/ui/al_Parameter.hpp"
 #include "al/ui/al_Pickable.hpp"
+#include "al_ext/soundfile/al_OutputRecorder.hpp"
+#include "nlohmann/json.hpp"
+using json = nlohmann::json;
+#ifdef _WIN32
+#include <stdlib.h>
+#define strcasecmp _stricmp
+#define PATH_MAX 1024
+#include <direct.h>
+#define GetCurrentDir _getcwd
+#elif __linux__
+#include <assert.h>
+#include <limits.h>
+#include <unistd.h>
+#define GetCurrentDir getcwd
+#else
+#include <limits.h>
+#include <mach-o/dyld.h>
+#include <stdlib.h>
+#define GetCurrentDir getcwd
+#endif
+
+#include <stdio.h> /* defines FILENAME_MAX */
+
 using namespace al;
 
 class CHON : public App {
@@ -33,6 +58,22 @@ class CHON : public App {
 
   void drawAudioIO(al::AudioIO *io);
 
+  /**
+   * @brief Modified version of al's soundfilerecordGUI.
+   *
+   * @param[in] Output recorder object.
+   *
+   * @param[in] Path of directory where the outputted sound files will be
+   * stored.
+   *
+   * @param[in] Frame rate of outputted file.
+   *
+   * @param[in] Number of channels of outputted file.
+   *
+   * @param[in] Amount of space allocated for sound.
+   */
+  void drawRecorderWidget(al::OutputRecorder *recorder, double frameRate, uint32_t numChannels,
+                          std::string directory = "", uint32_t bufferSize = 0);
   virtual void onAnimate(double dt) override;
 
   /**
@@ -57,6 +98,8 @@ class CHON : public App {
   virtual bool onKeyDown(al::Keyboard const &k) override;
 
   virtual bool onKeyUp(al::Keyboard const &k) override;
+
+  virtual void onExit() override;
 
   virtual void chonReset();
 
@@ -90,7 +133,17 @@ class CHON : public App {
   float h = 2;
 
   Reverb<float> reverb;
-  gam::NoiseWhite<> tick;
+  al::OutputRecorder mRecorder;
+  std::string soundOutput, execDir, execPath, userPath, configFile, presetsPath;
+  nfdresult_t result;
+  nfdchar_t *outPath = NULL;
+  bool freezedt = false;  // variable needed because NFD causes huge delta time
+                          // which messes with simulation
+  std::unique_ptr<al::PresetHandler> mPresets;
+
+  float windowWidth, windowHeight;
+  bool isFullScreen, isFirstLaunch;
+
   bool drawGUI = 1;
 
   /*
@@ -198,8 +251,7 @@ class CHON : public App {
   std::array<unsigned int, MAX_AUDIO_INS> AudioChanIndexIn;
 
   bool isPaused = false;
-  const int SAMPLE_RATE = 48000;
-  double globalSamplingRate = SAMPLE_RATE;
+  double globalSamplingRate = consts::SAMPLE_RATE;
   const int BLOCK_SIZE = 1024;
 
   int getLeadChannelOut() const { return AudioChanIndexOut[0]; }
@@ -245,6 +297,150 @@ class CHON : public App {
       default:
         return 0;
     }
+  }
+  void setSoundOutputPath(std::string sound_output_path) {
+    soundOutput = al::File::conformPathToOS(sound_output_path);
+  }
+  void setAudioSettings(float sample_rate) {
+    globalSamplingRate = sample_rate;
+    configureAudio(sample_rate, consts::BLOCK_SIZE, consts::MAX_AUDIO_OUTS, -1);
+  }
+  void setWindowDimensions(float width, float height) {
+    windowWidth = width;
+    windowHeight = height;
+    dimensions(width, height);
+  }
+  void setFirstLaunch(bool is_first_launch) { isFirstLaunch = is_first_launch; }
+  void setAudioDevice(std::string audio_device) { currentAudioDeviceOut = audio_device; }
+  void setInitFullscreen(bool fullscreen) { isFullScreen = fullscreen; }
+
+  // JSON config file stuff
+  bool initJsonConfig() {
+    json config;
+    std::ifstream ifs(userPath + configFile);
+
+    if (ifs.is_open()) {
+      config = json::parse(ifs);
+
+      if (config.find(consts::SOUND_OUTPUT_PATH_KEY) == config.end())
+        config[consts::SOUND_OUTPUT_PATH_KEY] =
+          al::File::conformPathToOS(userPath + consts::DEFAULT_SOUND_OUTPUT_PATH);
+
+      if (config.find(consts::SAMPLE_RATE_KEY) == config.end())
+        config[consts::SAMPLE_RATE_KEY] = consts::SAMPLE_RATE;
+
+      // if (config.find(con::FONT_SCALE_KEY) == config.end())
+      //   config[con::FONT_SCALE_KEY] = con::FONT_SCALE;
+
+      if (config.find(consts::WINDOW_WIDTH_KEY) == config.end())
+        config[consts::WINDOW_WIDTH_KEY] = consts::WINDOW_WIDTH;
+
+      if (config.find(consts::WINDOW_HEIGHT_KEY) == config.end())
+        config[consts::WINDOW_HEIGHT_KEY] = consts::WINDOW_HEIGHT;
+
+      if (config.find(consts::FULLSCREEN_KEY) == config.end())
+        config[consts::FULLSCREEN_KEY] = consts::FULLSCREEN;
+
+      if (config.find(consts::IS_FIRST_LAUNCH_KEY) == config.end())
+        config[consts::IS_FIRST_LAUNCH_KEY] = consts::IS_FIRST_LAUNCH;
+
+      if (config.find(consts::DEFAULT_AUDIO_DEVICE_KEY) == config.end())
+        config[consts::DEFAULT_AUDIO_DEVICE_KEY] = consts::DEFAULT_AUDIO_DEVICE;
+
+      if (config.find(consts::LEAD_CHANNEL_KEY) == config.end())
+        config[consts::LEAD_CHANNEL_KEY] = consts::DEFAULT_LEAD_CHANNEL;
+
+    } else {
+      config[consts::SOUND_OUTPUT_PATH_KEY] =
+        al::File::conformPathToOS(userPath + consts::DEFAULT_SOUND_OUTPUT_PATH);
+
+      config[consts::SAMPLE_RATE_KEY] = consts::SAMPLE_RATE;
+
+      // config[con::FONT_SCALE_KEY] = con::FONT_SCALE;
+
+      config[consts::WINDOW_WIDTH_KEY] = consts::WINDOW_WIDTH;
+
+      config[consts::WINDOW_HEIGHT_KEY] = consts::WINDOW_HEIGHT;
+
+      config[consts::FULLSCREEN_KEY] = consts::FULLSCREEN;
+
+      config[consts::IS_FIRST_LAUNCH_KEY] = consts::IS_FIRST_LAUNCH;
+
+      config[consts::DEFAULT_AUDIO_DEVICE_KEY] = consts::DEFAULT_AUDIO_DEVICE;
+
+      config[consts::LEAD_CHANNEL_KEY] = consts::DEFAULT_LEAD_CHANNEL;
+    }
+    std::ofstream file((userPath + configFile).c_str());
+    if (file.is_open()) file << config;
+
+    return false;
+  }
+
+  json jsonReadConfig() {
+    json config;
+
+    std::ifstream ifs(userPath + configFile);
+
+    if (ifs.is_open()) config = json::parse(ifs);
+
+    return config;
+  }
+
+  template <typename T>
+  bool jsonWriteToConfig(T value, std::string key) {
+    json config;
+
+    std::ifstream ifs(userPath + configFile);
+
+    if (ifs.is_open()) config = json::parse(ifs);
+
+    config[key] = value;
+
+    std::ofstream file((userPath + configFile).c_str());
+
+    if (file.is_open()) {
+      file << config;
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  std::string getUserHomePath() {
+    char homedir[PATH_MAX];
+#ifdef _WIN32
+    snprintf(homedir, sizeof(homedir), "%s%s", getenv("HOMEDRIVE"), getenv("HOMEPATH"));
+#else
+    snprintf(homedir, sizeof(homedir), "%s", getenv("HOME"));
+#endif
+    std::string result = strdup(homedir);
+    return result;
+  }
+  std::string getExecutablePath() {
+#if _WIN32
+    char *exePath;
+    if (_get_pgmptr(&exePath) != 0) exePath = "";
+
+#elif __linux__
+    char exePath[PATH_MAX];
+    ssize_t len = ::readlink("/proc/self/exe", exePath, sizeof(exePath));
+    if (len == -1 || len == sizeof(exePath)) len = 0;
+    exePath[len] = '\0';
+#else  // THIS MEANS YOU ARE USING A >
+    char exePath[PATH_MAX];
+    uint32_t len = sizeof(exePath);
+    if (_NSGetExecutablePath(exePath, &len) != 0) {
+      exePath[0] = '\0';  // buffer too small (!)
+    } else {
+      // resolve symlinks, ., .. if possible
+      char *canonicalPath = realpath(exePath, NULL);
+      if (canonicalPath != NULL) {
+        strncpy(exePath, canonicalPath, len);
+        free(canonicalPath);
+      }
+    }
+#endif
+    return std::string(exePath);
   }
 
   // Audio input buffers

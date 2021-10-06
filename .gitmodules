@@ -1,3 +1,6 @@
 [submodule "allolib"]
-	path = allolib
+	path = external/allolib
 	url = https://github.com/AlloSphere-Research-Group/allolib.git
+[submodule "al_ext"]
+	path = external/al_ext
+	url = https://github.com/AlloSphere-Research-Group/al_ext.git
