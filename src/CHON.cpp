@@ -96,8 +96,10 @@ void CHON::onInit() {  // Called on app start
     if (!x) {
       for (int x = 1; x <= particleNetwork.sizeX(); x++) {
         for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-          particleNetwork(x, y).resetPos(1, 0, 0);
-          particleNetwork(x, y).resetVelocity(1, 0, 0);
+          for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+            particleNetwork(x, y, z).resetPos(1, 0, 0);
+            particleNetwork(x, y, z).resetVelocity(1, 0, 0);
+          }
         }
       }
     }
@@ -106,8 +108,10 @@ void CHON::onInit() {  // Called on app start
     if (!y) {
       for (int x = 1; x <= particleNetwork.sizeX(); x++) {
         for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-          particleNetwork(x, y).resetPos(0, 1, 0);
-          particleNetwork(x, y).resetVelocity(0, 1, 0);
+          for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+            particleNetwork(x, y, z).resetPos(0, 1, 0);
+            particleNetwork(x, y, z).resetVelocity(0, 1, 0);
+          }
         }
       }
     }
@@ -116,8 +120,10 @@ void CHON::onInit() {  // Called on app start
     if (!z) {
       for (int x = 1; x <= particleNetwork.sizeX(); x++) {
         for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-          particleNetwork(x, y).resetPos(0, 0, 1);
-          particleNetwork(x, y).resetVelocity(0, 0, 1);
+          for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+            particleNetwork(x, y, z).resetPos(0, 0, 1);
+            particleNetwork(x, y, z).resetVelocity(0, 0, 1);
+          }
         }
       }
     }
@@ -147,8 +153,10 @@ void CHON::onInit() {  // Called on app start
       case 3:
         for (int x = 1; x <= particleNetwork.sizeX(); x++) {
           for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-            particleNetwork(x, y).setTuningRatio(x * y);
-            particleNetwork(x, y).setAmplitude(1.0f / x * y);
+            for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+              particleNetwork(x, y, z).setTuningRatio(x * y);
+              particleNetwork(x, y, z).setAmplitude(1.0f / x * y);
+            }
           }
         }
         particleNetwork.retune();
@@ -170,9 +178,13 @@ void CHON::onInit() {  // Called on app start
   tuningRoot.set(440);
 
   fmFreq.registerChangeCallback([&](float newFMFreq) {
-    for (int x = 1; x <= particleNetwork.sizeX(); x++)
-      for (int y = 1; y <= particleNetwork.sizeY(); y++)
-        particleNetwork(x, y).setFMModFreq(newFMFreq);
+    for (int x = 1; x <= particleNetwork.sizeX(); x++) {
+      for (int y = 1; y <= particleNetwork.sizeY(); y++) {
+        for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+          particleNetwork(x, y, z).setFMModFreq(newFMFreq);
+        }
+      }
+    }
   });
   auto a_d = AudioDevice(currentAudioDeviceOut, AudioDevice::OUTPUT);
   if (!a_d.valid()) {
@@ -213,22 +225,26 @@ void CHON::onCreate() {  // Called when graphics context is available
 }
 
 void CHON::chonReset() {
-  std::cout << "Reset Particle network to " << xParticles << " by " << yParticles << std::endl;
+  std::cout << "Reset Particle network to " << xParticles << " by " << yParticles << " by "
+            << zParticles << std::endl;
   resetLock.lock();
 
-  // changing camera depending on if it's a 2D or 1D particle system
-  if (particleNetwork.sizeY() == 1 && yParticles > 1) {
+  // Complicated logic for changing camera if switching between 1D and 2D
+  if ((particleNetwork.sizeY() == 1 && yParticles > 1) && (zParticles == 1)) {
     onResize(width(), height());
-  } else if (yParticles == 1) {
+  } else if ((particleNetwork.sizeZ() == 1 && zParticles > 1) && (yParticles == 1)) {
+    onResize(width(), height());
+  } else if (yParticles == 1 && zParticles == 1) {
     onResize(width(), height());
   }
 
   // reset particle network
-  particleNetwork.resize(xParticles, yParticles);
+  particleNetwork.resize(xParticles, yParticles, zParticles);
 
   // do I need to delete the previous chonBundles?
   xSpringGUI.reset(new ChonBundle(1));
   ySpringGUI.reset(new ChonBundle(1));
+  zSpringGUI.reset(new ChonBundle(1));
 
   for (int i = 0; i <= particleNetwork.sizeX(); i++) {
     // Create element
@@ -244,14 +260,25 @@ void CHON::chonReset() {
     // Register its parameter bundle with the ControlGUI
     *ySpringGUI << newSpring->bundle;
   }
+  for (int i = 0; i <= particleNetwork.sizeZ(); i++) {
+    // Create element
+    auto *newSpring = new Spring{"Z Springs"};
+    particleNetwork.zSprings.push_back(newSpring);
+    // Register its parameter bundle with the ControlGUI
+    *zSpringGUI << newSpring->bundle;
+  }
 
   driveParticleXLeft.max(particleNetwork.sizeX());
   driveParticleYLeft.max(particleNetwork.sizeY());
+  driveParticleZLeft.max(particleNetwork.sizeY());
   driveParticleXRight.max(particleNetwork.sizeX());
   driveParticleYRight.max(particleNetwork.sizeY());
+  driveParticleZRight.max(particleNetwork.sizeY());
 
-  fftDivision = log(fftBuffer.size()) / (particleNetwork.sizeX() * particleNetwork.sizeY());
-  client.send("/Nparticles/", particleNetwork.sizeX() * particleNetwork.sizeY());
+  fftDivision = log(fftBuffer.size()) /
+                (particleNetwork.sizeX() * particleNetwork.sizeY() * particleNetwork.sizeZ());
+  client.send("/Nparticles/",
+              particleNetwork.sizeX() * particleNetwork.sizeY() * particleNetwork.sizeZ());
   resetLock.unlock();
 }
 
@@ -261,8 +288,12 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
 
   if (particleNetwork.sizeY() != yParticles) chonReset();
 
+  if (particleNetwork.sizeZ() != zParticles) chonReset();
+
   w = width();
   h = height();
+
+  // nav().faceToward(Vec3f(0.0, 0.0, 0.0));
 
   particleNetwork.setFreedom(xFree, yFree, zFree);
 
@@ -272,33 +303,34 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
         case 0:  // Peak
           driveForceLeft = inLeft.at(inLeft.getTail());
           if (driveForceLeft > inputThreshold)
-            particleNetwork(driveParticleXLeft, driveParticleYLeft)
+            particleNetwork(driveParticleXLeft, driveParticleYLeft, driveParticleZLeft)
               .addAcceleration(driveAxisLeft, driveForceLeft * inputScale);
           if (driveStereoSplit) {
             driveForceRight = inRight.at(inRight.getTail());
             if (driveForceRight > inputThreshold)
-              particleNetwork(driveParticleXRight, driveParticleYRight)
+              particleNetwork(driveParticleXRight, driveParticleYRight, driveParticleZRight)
                 .addAcceleration(driveAxisRight, driveForceRight * inputScale);
           }
           break;
         case 1:  // RMS
           driveForceLeft = inLeft.getRMS(rmsSize);
           if (driveForceLeft > inputThreshold)
-            particleNetwork(driveParticleXLeft, driveParticleYLeft)
+            particleNetwork(driveParticleXLeft, driveParticleYLeft, driveParticleZLeft)
               .addAcceleration(driveAxisLeft, driveForceLeft * inputScale);
           if (driveStereoSplit) {
             driveForceRight = inRight.getRMS(rmsSize);
             if (driveForceRight > inputThreshold)
-              particleNetwork(driveParticleXRight, driveParticleYRight)
+              particleNetwork(driveParticleXRight, driveParticleYRight, driveParticleZRight)
                 .addAcceleration(driveAxisRight, driveForceRight * inputScale);
           }
           break;
         case 2:  // Frequency
-          particleNetwork(1, 1).addAcceleration(driveAxisLeft, fftBuffer[0] * inputScale);
-          for (int i = 1; i < fftBuffer.size(); i++) {
+          particleNetwork(1, 1, 1).addAcceleration(driveAxisLeft, fftBuffer[0] * inputScale);
+          for (unsigned int i = 1; i < fftBuffer.size(); i++) {
             fftIterator = floor((log(i) / fftDivision) + 1);
             particleNetwork(fftIterator % (particleNetwork.sizeX() + 1),
-                            ceil(fftIterator / float(particleNetwork.sizeX() + 1)))
+                            ceil(fftIterator / float(particleNetwork.sizeX() + 1)),
+                            ceil(fftIterator / float(particleNetwork.sizeY() + 1)))
               .addAcceleration(driveAxisLeft, fftBuffer[i] * inputScale);
           }
           fftIterator = 0;
@@ -317,65 +349,70 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
       particleNetwork.updateVelocities(dt);
     }
     for (int x = 1; x <= particleNetwork.sizeX(); x++)
-      for (int y = 1; y <= particleNetwork.sizeY(); y++) {  // animate stuff
-        if (particleNetwork(x, y).particle.selected) {
-          particleNetwork(x, y).resetVelocity(1, 1, 1);
-        } else {  // increment positions according to velocity
-          particleNetwork(x, y).velocityStep();
-        }
+      for (int y = 1; y <= particleNetwork.sizeY(); y++) {
+        for (int z = 1; z <= particleNetwork.sizeZ(); z++) {  // animate stuff
+          if (particleNetwork(x, y, z).particle.selected) {
+            particleNetwork(x, y, z).resetVelocity(1, 1, 1);
+          } else {  // increment positions according to velocity
+            particleNetwork(x, y, z).velocityStep();
+          }
 
-        particleNetwork(x, y).updateDisplacement();
+          particleNetwork(x, y, z).updateDisplacement();
 
-        if (DrawGraph) {  // updating the 2d displacement graph
-          particleNetwork(x, y).graphMesh.translate(-w / (60 * graphSpeed), 0,
-                                                    0);  // move previous graph data left
-          if (particleNetwork(x, y).graphMesh.vertices().size() > w)
-            particleNetwork(x, y).graphMesh.vertices().erase(
-              particleNetwork(x, y).graphMesh.vertices().begin());  // erase left-edge graph data
-          float graphY =
-            h * particleNetwork(x, y).getDisplacement()[graphAxis];  // calculate new phase value
-          graphY /= particleNetwork.springLength * 8;
-          graphY += (h * ((graphSpread * x / (particleNetwork.sizeX() + 1)) +
-                          ((0.75 - (graphSpread / 2)))));  // add offset for each graph
-          particleNetwork(x, y).graphMesh.vertex(w, graphY,
-                                                 0);  // update with new graph data on right
-        }
+          if (DrawGraph) {  // updating the 2d displacement graph
+            particleNetwork(x, y, z).graphMesh.translate(-w / (60 * graphSpeed), 0,
+                                                         0);  // move previous graph data left
+            if (particleNetwork(x, y, z).graphMesh.vertices().size() > w)
+              particleNetwork(x, y, z).graphMesh.vertices().erase(
+                particleNetwork(x, y, z).graphMesh.vertices().begin());  // erase left-edge graph
+                                                                         // data
+            float graphY =
+              h *
+              particleNetwork(x, y, z).getDisplacement()[graphAxis];  // calculate new phase value
+            graphY /= particleNetwork.springLength * 8;
+            graphY += (h * ((graphSpread * x / (particleNetwork.sizeX() + 1)) +
+                            ((0.75 - (graphSpread / 2)))));  // add offset for each graph
+            particleNetwork(x, y, z).graphMesh.vertex(w, graphY,
+                                                      0);  // update with new graph data on right
+          }
 
-        if (fm) {  // copy displacement values to FM synthesis engine
-          particleNetwork(x, y).fmSmooth.setTarget(particleNetwork(x, y).getDisplacement()[fmAxis] /
-                                                   particleNetwork.springLength);
-        }
+          if (fm) {  // copy displacement values to FM synthesis engine
+            particleNetwork(x, y, z).fmSmooth.setTarget(
+              particleNetwork(x, y, z).getDisplacement()[fmAxis] / particleNetwork.springLength);
+          }
 
-        if (am) {  // copy displacement values to AM synthesis engine
-          float val =
-            particleNetwork(x, y).getDisplacement()[amAxis] / particleNetwork.springLength;
-          val = val > 1 ? 1 : val;
-          val = val < -1 ? -1 : val;
-          particleNetwork(x, y).amSmooth.setTarget(val);
-        }
+          if (am) {  // copy displacement values to AM synthesis engine
+            float val =
+              particleNetwork(x, y, z).getDisplacement()[amAxis] / particleNetwork.springLength;
+            val = val > 1 ? 1 : val;
+            val = val < -1 ? -1 : val;
+            particleNetwork(x, y, z).amSmooth.setTarget(val);
+          }
 
-        if (stereoOn) {  // set the particle's pan position
-          particleNetwork(x, y).panSmooth.setTarget(particleNetwork(x, y).x() + 0.5);
-        }
+          if (stereoOn) {  // set the particle's pan position
+            particleNetwork(x, y, z).panSmooth.setTarget(particleNetwork(x, y, z).x() + 0.5);
+          }
 
-        particleNetwork(x, y).checkZeroCrossing();
+          particleNetwork(x, y, z).checkZeroCrossing();
 
-        // OSC
-        if (oscOn) {
-          if (oscX)
-            client.send(
-              particleNetwork(x, y).oscName["Xdisp"],
-              float(particleNetwork(x, y).getDisplacement()[0] / particleNetwork.springLength));
-          if (oscY)
-            client.send(
-              particleNetwork(x, y).oscName["Ydisp"],
-              float(particleNetwork(x, y).getDisplacement()[1] / particleNetwork.springLength));
-          if (oscZ)
-            client.send(
-              particleNetwork(x, y).oscName["Zdisp"],
-              float(particleNetwork(x, y).getDisplacement()[2] / particleNetwork.springLength));
-          if (oscPan)
-            client.send(particleNetwork(x, y).oscName["Xpos"], float(particleNetwork(x, y).x()));
+          // OSC
+          if (oscOn) {
+            if (oscX)
+              client.send(particleNetwork(x, y, z).oscName["Xdisp"],
+                          float(particleNetwork(x, y, z).getDisplacement()[0] /
+                                particleNetwork.springLength));
+            if (oscY)
+              client.send(particleNetwork(x, y, z).oscName["Ydisp"],
+                          float(particleNetwork(x, y, z).getDisplacement()[1] /
+                                particleNetwork.springLength));
+            if (oscZ)
+              client.send(particleNetwork(x, y, z).oscName["Zdisp"],
+                          float(particleNetwork(x, y, z).getDisplacement()[2] /
+                                particleNetwork.springLength));
+            if (oscPan)
+              client.send(particleNetwork(x, y, z).oscName["Xpos"],
+                          float(particleNetwork(x, y, z).x()));
+          }
         }
       }
   }
@@ -394,24 +431,43 @@ void CHON::onDraw(Graphics &g) {  // Draw function
 
   if (drawBoundaries) {
     g.color(1);
-    if (particleNetwork.sizeY() > 1)
+    if (particleNetwork.sizeY() > 1) {
       for (int x = 1; x <= particleNetwork.sizeX(); x++) {
-        particleNetwork(x, 0).draw(g);
-        particleNetwork(x, particleNetwork.sizeY() + 1).draw(g);
+        for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+          particleNetwork(x, 0, z).draw(g);
+          particleNetwork(x, particleNetwork.sizeY() + 1, z).draw(g);
+        }
       }
-    for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-      particleNetwork(0, y).draw(g);
-      particleNetwork(particleNetwork.sizeX() + 1, y).draw(g);
+    }
+    if (particleNetwork.sizeZ() > 1) {
+      for (int x = 1; x <= particleNetwork.sizeX(); x++) {
+        for (int y = 1; y <= particleNetwork.sizeY(); y++) {
+          particleNetwork(x, y, 0).draw(g);
+          particleNetwork(x, y, particleNetwork.sizeZ() + 1).draw(g);
+        }
+      }
+    }
+    if (particleNetwork.sizeX() > 1) {
+      for (int y = 1; y <= particleNetwork.sizeY(); y++) {
+        for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+          particleNetwork(0, y, z).draw(g);
+          particleNetwork(particleNetwork.sizeX() + 1, y, z).draw(g);
+        }
+      }
     }
   }
 
   if (drawParticles) {
-    for (int x = 1; x <= particleNetwork.sizeX(); x++)
+    for (int x = 1; x <= particleNetwork.sizeX(); x++) {
       for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-        g.color(HSV((float(x * y) / (particleNetwork.sizeX() * particleNetwork.sizeY())), 0.5, 1));
-        particleNetwork(x, y).resetPos(!xFree, !yFree, !zFree);
-        particleNetwork(x, y).draw(g);
+        for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+          g.color(
+            HSV((float(x * y) / (particleNetwork.sizeX() * particleNetwork.sizeY())), 0.5, 1));
+          particleNetwork(x, y, z).resetPos(!xFree, !yFree, !zFree);
+          particleNetwork(x, y, z).draw(g);
+        }
       }
+    }
     // texBlur.copyFrameBuffer();
   }
 
@@ -419,11 +475,16 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     g.pushCamera();
     g.camera(Viewpoint::ORTHO_FOR_2D);  // Ortho [0:width] x [0:height]
     g.lighting(false);
-    for (int x = 1; x <= particleNetwork.sizeX(); x++)
+    for (int x = 1; x <= particleNetwork.sizeX(); x++) {
       for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-        g.color(HSV((float(x * y) / (particleNetwork.sizeX() * particleNetwork.sizeY())), 0.5, 1));
-        g.draw(particleNetwork(x, y).graphMesh);
+        for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+          g.color(HSV((float(x * y * z) / (particleNetwork.sizeX() * particleNetwork.sizeY() *
+                                           particleNetwork.sizeZ())),
+                      0.5, 1));
+          g.draw(particleNetwork(x, y, z).graphMesh);
+        }
       }
+    }
     g.popCamera();
   }
 
@@ -461,21 +522,28 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ImGui::Text("Particle Count");
     ImGui::PushItemWidth(100);
     ImGui::InputInt("x", &xParticles);
-    if (xParticles * yParticles > 100)
-      xParticles = int(100 / yParticles);
+    if (xParticles * yParticles * zParticles > 100)
+      xParticles = int(100 / yParticles / zParticles);
     else if (xParticles < 1)
       xParticles = 1;
     ImGui::SameLine();
     ImGui::InputInt("y", &yParticles);
-    if (xParticles * yParticles > 100)
-      yParticles = int(100 / xParticles);
+    if (xParticles * yParticles * zParticles > 100)
+      yParticles = int(100 / xParticles / zParticles);
     else if (yParticles < 1)
       yParticles = 1;
+    ImGui::SameLine();
+    ImGui::InputInt("z", &zParticles);
+    if (xParticles * yParticles * zParticles > 100)
+      zParticles = int(100 / yParticles / xParticles);
+    else if (zParticles < 1)
+      zParticles = 1;
     ImGui::PopItemWidth();
     ImGui::Separator();
     ImGui::PushItemWidth(200);
     xSpringGUI->drawBundleGUI();
     if (particleNetwork.sizeY() > 1) ySpringGUI->drawBundleGUI();
+    if (particleNetwork.sizeZ() > 1) zSpringGUI->drawBundleGUI();
     ImGui::PopItemWidth();
     ParameterGUI::drawParameter(&mass);
     ParameterGUI::drawParameter(&damping);
@@ -562,12 +630,14 @@ void CHON::onDraw(Graphics &g) {  // Draw function
         if (driveStereoSplit) ImGui::Text("Left Channel");
         ParameterGUI::drawParameterInt(&driveParticleXLeft, "");
         ParameterGUI::drawParameterInt(&driveParticleYLeft, "");
+        ParameterGUI::drawParameterInt(&driveParticleZLeft, "");
       }
       ParameterGUI::drawMenu(&driveAxisLeft);
       if (driveStereoSplit && inputMode != 2) {
         ImGui::Text("Right Channel");
         ParameterGUI::drawParameterInt(&driveParticleXRight, "");
         ParameterGUI::drawParameterInt(&driveParticleYRight, "");
+        ParameterGUI::drawParameterInt(&driveParticleZRight, "");
         ParameterGUI::drawMenu(&driveAxisRight);
       }
       ParameterGUI::drawParameter(&inputScale);
@@ -603,11 +673,15 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     if (ImGui::CollapsingHeader("Message Syntax")) {
       ImGui::Text(
         "OSC messages are formatted as follows:\n"
-        "FirstArg/SecondArg Value\n\n"
-        "FirstArg:\n"
-        "dispX, dispY, or dispZ \n\n"
+        "/FirstArg/SecondArg Value\n\n"
+        "FirstArg options:\n"
+        "pan, dispX, dispY, or dispZ \n\n"
         "SecondArg:\n"
-        "Integer representing the particle number");
+        "Integer representing the particle number\n"
+        "Value is a float\n\n"
+        "Whenever the number of particles changes,\n"
+        "a message is sent with the new number of particles:\n"
+        "/Nparticles int");
     }
     ImGui::PopFont();
 
@@ -650,54 +724,65 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
 
     if (resetLock.try_lock()) {
       if (stereoOn) {
-        for (int x = 1; x <= particleNetwork.sizeX(); x++)
+        for (int x = 1; x <= particleNetwork.sizeX(); x++) {
           for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-            particleNetwork(x, y).panSmooth.process();
+            for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+              particleNetwork(x, y, z).panSmooth.process();
+            }
           }
+        }
       }
 
       if (additiveSynthOn) {
-        for (int x = 1; x <= particleNetwork.sizeX(); x++)
+        for (int x = 1; x <= particleNetwork.sizeX(); x++) {
           for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-            if (particleNetwork(x, y).getFreq() < 20000) {
-              if (fm) {
-                particleNetwork(x, y).fmProcess(fmWidth);
-              } else {
-                particleNetwork(x, y).fmProcess(0);
+            for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+              if (particleNetwork(x, y, z).getFreq() < 20000) {
+                if (fm) {
+                  particleNetwork(x, y, z).fmProcess(fmWidth);
+                } else {
+                  particleNetwork(x, y, z).fmProcess(0);
+                }
+                double sampleToAdd =
+                  particleNetwork(x, y, z).processOscillator() * additiveVolume;  // scale
+                sampleToAdd /= 5.0;  // scale for higher pitches
+                if (am) {
+                  sampleToAdd *=
+                    particleNetwork(x, y, z).amSmooth.process();  // amplitude modulation
+                }
+                if (stereoOn) {
+                  s[0] += (1 - particleNetwork(x, y, z).panSmooth.getCurrentValue()) * sampleToAdd;
+                  s[1] += particleNetwork(x, y, z).panSmooth.getCurrentValue() * sampleToAdd;
+                } else {
+                  s[0] += sampleToAdd;
+                  s[1] += sampleToAdd;
+                }
               }
-              double sampleToAdd =
-                particleNetwork(x, y).processOscillator() * additiveVolume;  // scale
-              sampleToAdd /= 5.0;  // scale for higher pitches
-              if (am) {
-                sampleToAdd *= particleNetwork(x, y).amSmooth.process();  // amplitude modulation
+            }
+          }
+        }
+      }
+
+      if (bellSynthOn) {
+        for (int x = 1; x <= particleNetwork.sizeX(); x++) {
+          for (int y = 1; y <= particleNetwork.sizeY(); y++) {
+            for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+              if (particleNetwork(x, y, z).isZeroTrigger(bellAxis)) {
+                if (particleNetwork(x, y, z).getFreq() < 20000)
+                  particleNetwork(x, y, z).bellTrigger();
               }
+
+              double sampleToAdd = particleNetwork(x, y, z).bellProcess() * 0.2 * bellVolume;
               if (stereoOn) {
-                s[0] += (1 - particleNetwork(x, y).panSmooth.getCurrentValue()) * sampleToAdd;
-                s[1] += particleNetwork(x, y).panSmooth.getCurrentValue() * sampleToAdd;
+                s[0] += (1 - particleNetwork(x, y, z).panSmooth.getCurrentValue()) * sampleToAdd;
+                s[1] += particleNetwork(x, y, z).panSmooth.getCurrentValue() * sampleToAdd;
               } else {
                 s[0] += sampleToAdd;
                 s[1] += sampleToAdd;
               }
             }
           }
-      }
-
-      if (bellSynthOn) {
-        for (int x = 1; x <= particleNetwork.sizeX(); x++)
-          for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-            if (particleNetwork(x, y).isZeroTrigger(bellAxis)) {
-              if (particleNetwork(x, y).getFreq() < 20000) particleNetwork(x, y).bellTrigger();
-            }
-
-            double sampleToAdd = particleNetwork(x, y).bellProcess() * 0.2 * bellVolume;
-            if (stereoOn) {
-              s[0] += (1 - particleNetwork(x, y).panSmooth.getCurrentValue()) * sampleToAdd;
-              s[1] += particleNetwork(x, y).panSmooth.getCurrentValue() * sampleToAdd;
-            } else {
-              s[0] += sampleToAdd;
-              s[1] += sampleToAdd;
-            }
-          }
+        }
       }
       resetLock.unlock();
     }
@@ -735,7 +820,7 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
           break;
         case 2:  // Frequency
           if (stft((io.in(0) + io.in(1)) / 2)) {
-            for (int i = 0; i < stft.numBins(); i++) {
+            for (unsigned int i = 0; i < stft.numBins(); i++) {
               fftBuffer[i] = abs(stft.bin(i)[0]);
             }
           }
@@ -753,8 +838,6 @@ void CHON::onResize(int width, int height) {
     nav().home();
     if (yParticles > 1) {
       nav().pullBack(2.2 + pow(0.002 * (1900 - width), 2));
-      nav().view(0, 0, -0.5);
-      nav().faceToward(Vec3d{1, 1, -1});
     } else
       nav().pullBack(1.2 + pow(0.002 * (1900 - width), 2));
   } else {
@@ -762,8 +845,6 @@ void CHON::onResize(int width, int height) {
     nav().pos(-0.5 * (500 / float(width)), 0.2, 0);
     if (yParticles > 1) {
       nav().pullBack(2.7 + pow(0.002 * (1900 - width), 2));
-      nav().view(0, 0, -0.5);
-      nav().faceToward(Vec3d{1, 1, -1});
     } else
       nav().pullBack(1.5 + pow(0.002 * (1900 - width), 2));
   }
@@ -802,38 +883,52 @@ Rayd CHON::getPickRay(int screenX, int screenY) {
 bool CHON::onMouseMove(const Mouse &m) {
   // make a ray from mouse location
   Rayd r = getPickRay(m.x(), m.y());
-  for (int x = 1; x <= particleNetwork.sizeX(); x++)
-    for (int y = 1; y <= particleNetwork.sizeY(); y++)
-      particleNetwork(x, y).particle.event(PickEvent(Point, r));
+  for (int x = 1; x <= particleNetwork.sizeX(); x++) {
+    for (int y = 1; y <= particleNetwork.sizeY(); y++) {
+      for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+        particleNetwork(x, y, z).particle.event(PickEvent(Point, r));
+      }
+    }
+  }
   return true;
 }
 bool CHON::onMouseDown(const Mouse &m) {
   Rayd r = getPickRay(m.x(), m.y());
-  for (int x = 1; x <= particleNetwork.sizeX(); x++)
+  for (int x = 1; x <= particleNetwork.sizeX(); x++) {
     for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-      if (m.button() == 0)
-        particleNetwork(x, y).particle.event(PickEvent(Pick, r));
-      else if (particleNetwork(x, y).particle.hover && m.button() == 2) {
-        isRightClickedParticle = true;
-        rightClickedParticle = &particleNetwork(x, y);
+      for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+        if (m.button() == 0)
+          particleNetwork(x, y, z).particle.event(PickEvent(Pick, r));
+        else if (particleNetwork(x, y, z).particle.hover && m.button() == 2) {
+          isRightClickedParticle = true;
+          rightClickedParticle = &particleNetwork(x, y, z);
+        }
       }
     }
+  }
   return true;
 }
 bool CHON::onMouseDrag(const Mouse &m) {
   Rayd r = getPickRay(m.x(), m.y());
-  for (int x = 1; x <= particleNetwork.sizeX(); x++)
-    for (int y = 1; y <= particleNetwork.sizeY(); y++)
-      particleNetwork(x, y).particle.event(PickEvent(Drag, r));
+  for (int x = 1; x <= particleNetwork.sizeX(); x++) {
+    for (int y = 1; y <= particleNetwork.sizeY(); y++) {
+      for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+        particleNetwork(x, y, z).particle.event(PickEvent(Drag, r));
+      }
+    }
+  }
   return true;
 }
 bool CHON::onMouseUp(const Mouse &m) {
   Rayd r = getPickRay(m.x(), m.y());
-  for (int x = 1; x <= particleNetwork.sizeX(); x++)
+  for (int x = 1; x <= particleNetwork.sizeX(); x++) {
     for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-      particleNetwork(x, y).particle.event(PickEvent(Unpick, r));
-      particleNetwork(x, y).particle.clearSelection();
+      for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+        particleNetwork(x, y, z).particle.event(PickEvent(Unpick, r));
+        particleNetwork(x, y, z).particle.clearSelection();
+      }
     }
+  }
   return true;
 }
 
@@ -845,24 +940,30 @@ bool CHON::onKeyDown(Keyboard const &k) {
     case 'v':
       onResize(width(), height());
       return false;
+    case 'b':
+      nav().print();
+      return false;
     case 'g':
       drawGUI = 1 - drawGUI;
       onResize(width(), height());
       return false;
     case 'r':
       srand(std::time(0));
-      for (int x = 1; x <= particleNetwork.sizeX(); x++)
+      for (int x = 1; x <= particleNetwork.sizeX(); x++) {
         for (int y = 1; y <= particleNetwork.sizeY(); y++) {
-          particleNetwork(x, y).addVelocity((float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 10,
-                                            (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 10,
-                                            (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 10);
+          for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+            particleNetwork(x, y, z).addVelocity((float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 10,
+                                                 (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 10,
+                                                 (float(rand() - (RAND_MAX / 2)) / RAND_MAX) / 10);
+          }
         }
+      }
       return false;
     case Keyboard::UP:
-      nav().moveF(0.02);
+      nav().spinR(0.02);
       return false;
     case Keyboard::DOWN:
-      nav().moveF(-0.02);
+      nav().spinR(-0.02);
       return false;
     case Keyboard::LEFT:
       nav().spinU(0.02);
@@ -879,10 +980,10 @@ bool CHON::onKeyDown(Keyboard const &k) {
 bool CHON::onKeyUp(Keyboard const &k) {
   switch (k.key()) {
     case Keyboard::UP:
-      nav().moveF(0);
+      nav().spinR(0);
       return false;
     case Keyboard::DOWN:
-      nav().moveF(0);
+      nav().spinR(0);
       return false;
     case Keyboard::LEFT:
       nav().spinU(0);

@@ -155,11 +155,11 @@ struct Particle {
     acceleration[1] += y;
     acceleration[2] += z;
   }
-  void applyAcceleration(double step) { velocity += acceleration * step; }
-
   // add acceleration to an axis
   // axis: 0 for x, 1 for y, 2 for z
   void addAcceleration(int axis, double val) { acceleration[axis] += val; }
+
+  void applyAcceleration(double step) { velocity += acceleration * step; }
 
   void calculateAcceleration(float m, float b) {
     acceleration = (acceleration / m) - (velocity * b);  // (kx / m) - vb
@@ -195,15 +195,17 @@ struct Particle {
 
   void setParticleMesh(al::Mesh &mesh) { particle.set(mesh); }
 
-  void setParticleName(std::string name) {
-    particleName = name;
-    oscName["Xdisp"] = "/dispX/" + name;
-    oscName["Ydisp"] = "/dispY/" + name;
-    oscName["Zdisp"] = "/dispZ/" + name;
-    oscName["Xpos"] = "/pan/" + name;
+  void setParticleNumber(int number) {
+    particleNumber = number;
+    particleName = std::to_string(number);
+    oscName["Xdisp"] = "/dispX/" + particleName;
+    oscName["Ydisp"] = "/dispY/" + particleName;
+    oscName["Zdisp"] = "/dispZ/" + particleName;
+    oscName["Xpos"] = "/pan/" + particleName;
   }
 
   std::string getParticleName() { return particleName; }
+  int getParticleNumber() { return particleNumber; }
 
   void checkZeroCrossing() {
     for (int i = 0; i < 3; i++) {  // check if zero crossing
@@ -255,6 +257,7 @@ struct Particle {
   al::Vec3d displacement = {0, 0, 0};
   al::Vec3d prevDisplacement = {0, 0, 0};
 
+  int particleNumber;
   std::string particleName;
 
   gam::Sine<> oscillator;
@@ -269,30 +272,52 @@ struct Particle {
   bool zeroTrigger[3] = {0, 0, 0};
 };
 
-// to do, add 3rd dimension
 struct ParticleNetwork {
  public:
-  ParticleNetwork(unsigned int x = 4, unsigned int y = 1) {
+  ParticleNetwork(unsigned int x = 4, unsigned int y = 1, unsigned z = 1) {
     nX = x;
     nY = y;
+    nZ = z;
     particles.clear();
+    // create nX particles (+2 boundary particles) in X direction
     particles.resize(nX + 2);
-    for (int y = 0; y <= nX + 1; y++) particles[y].resize(nY + 2);
+    // create nY particles (+2 boundary particles) in Y direction for each particle in X
+    for (int xRow = 0; xRow <= nX + 1; xRow++) {
+      particles[xRow].resize(nY + 2);
+    }
+    // create nZ particles (+2 boundary particles) in Z direction for each row in x,y
+    for (int xRow = 0; xRow <= nX + 1; xRow++) {
+      for (int yRow = 0; yRow <= nY + 1; yRow++) {
+        particles[xRow][yRow].resize(nZ + 2);
+      }
+    }
   }
 
-  Particle &operator()(int x, int y) { return particles[x][y]; }
+  Particle &operator()(int x, int y, int z) { return particles[x][y][z]; }
 
-  void resize(unsigned int newSizeX, unsigned int newSizeY) {
+  void resize(unsigned int newSizeX, unsigned int newSizeY, unsigned int newSizeZ) {
     nX = newSizeX;
     nY = newSizeY;
+    nZ = newSizeZ;
     particles.clear();
+    // create nX particles (+2 boundary particles) in X direction
     particles.resize(nX + 2);
-    for (int y = 0; y <= nX + 1; y++) particles[y].resize(nY + 2);
+    // create nY particles (+2 boundary particles) in Y direction for each particle in X
+    for (int xRow = 0; xRow <= nX + 1; xRow++) {
+      particles[xRow].resize(nY + 2);
+    }
+    // create nZ particles (+2 boundary particles) in Z direction for each row in x,y
+    for (int xRow = 0; xRow <= nX + 1; xRow++) {
+      for (int yRow = 0; yRow <= nY + 1; yRow++) {
+        particles[xRow][yRow].resize(nZ + 2);
+      }
+    }
 
     xSprings.clear();
     ySprings.clear();
+    zSprings.clear();
 
-    springLength = 1.0f / (std::max(nX, nY) + 1);
+    springLength = 1.0f / (std::max(std::max(nX, nY), nZ) + 1);
 
     particleMesh.reset();
     addIcosphere(particleMesh, springLength / 5, 4);
@@ -300,12 +325,15 @@ struct ParticleNetwork {
 
     for (int x = 0; x <= nX + 1; x++) {
       for (int y = 0; y <= nY + 1; y++) {
-        particles[x][y].setParticleMesh(particleMesh);
-        particles[x][y].setEquilibrium(
-          al::Vec3d((x * springLength) - ((springLength * (nX + 1)) / 2),
-                    (y * springLength) - ((springLength * (nY + 1)) / 2), 0));
-        particles[x][y].resetPos(1, 1, 1);
-        particles[x][y].setParticleName(std::to_string(((y - 1) * nX) + x));
+        for (int z = 0; z <= nZ + 1; z++) {
+          particles[x][y][z].setParticleMesh(particleMesh);
+          particles[x][y][z].setEquilibrium(
+            al::Vec3d((x * springLength) - ((springLength * (nX + 1)) / 2),
+                      (y * springLength) - ((springLength * (nY + 1)) / 2),
+                      (z * springLength) - ((springLength * (nZ + 1)) / 2)));
+          particles[x][y][z].resetPos(1, 1, 1);
+          particles[x][y][z].setParticleNumber(x + ((y - 1) * nX) + ((z - 1) * nY * nX));
+        }
       }
     }
     retune(scale);
@@ -313,35 +341,44 @@ struct ParticleNetwork {
 
   // Update velocities of a 2-D array of particles
   void updateVelocities(double step) {
-    int NX = particles.size();
-    int NY = particles[0].size();
+    for (int z = 0; z < nZ + 1; z++)
+      for (int y = 0; y < nY + 1; y++)
+        for (int x = 0; x < nX + 1; x++) {
+          std::array<double, 3> forcesX = calculateForces(
+            particles[x][y][z], particles[x + 1][y][z], springLength, xSprings[x]->k, freedom);
 
-    for (int y = 0; y < NY - 1; y++)
-      for (int x = 0; x < NX - 1; x++) {
-        std::array<double, 3> forcesX = calculateForces(particles[x][y], particles[x + 1][y],
-                                                        springLength, xSprings[x]->k, freedom);
-
-        if (NY > 3) {  // only calculate Y forces if 2d array (NY > 1 + 2 boundary particles)
-          std::array<double, 3> forcesY = calculateForces(particles[x][y], particles[x][y + 1],
-                                                          springLength, ySprings[y]->k, freedom);
-          for (int j = 0; j < 3; j++) {
-            particles[x][y].addAcceleration(j, forcesY[j]);  // force due to above particle spring
-            particles[x][y + 1].addAcceleration(
-              j, forcesY[j] * -1);  // opposite force on above particle
+          if (nY > 1) {
+            std::array<double, 3> forcesY = calculateForces(
+              particles[x][y][z], particles[x][y + 1][z], springLength, ySprings[y]->k, freedom);
+            particles[x][y][z].addAcceleration(forcesY[0], forcesY[1],
+                                               forcesY[2]);  // force due to above particle spring
+            particles[x][y + 1][z].addAcceleration(
+              forcesY[0] * -1, forcesY[1] * -1,
+              forcesY[2] * -1);  // opposite force on above particle
           }
+          if (nZ > 1) {
+            std::array<double, 3> forcesZ = calculateForces(
+              particles[x][y][z], particles[x][y][z + 1], springLength, zSprings[z]->k, freedom);
+            particles[x][y][z].addAcceleration(
+              forcesZ[0], forcesZ[1], forcesZ[2]);  // force due to in front particle spring
+            particles[x][y][z + 1].addAcceleration(
+              forcesZ[0] * -1, forcesZ[1] * -1,
+              forcesZ[2] * -1);  // opposite force on behind particle
+          }
+
+          particles[x][y][z].addAcceleration(forcesX[0], forcesX[1],
+                                             forcesX[2]);  // force due to right particle spring
+          particles[x + 1][y][z].addAcceleration(
+            forcesX[0] * -1, forcesX[1] * -1,
+            forcesX[2] * -1);  // opposite force on right particle
+
+          particles[x][y][z].calculateAcceleration(mass, damping);
+          particles[x][y][z].applyAcceleration(step);  // update velocity according to time step
         }
 
-        particles[x][y].addAcceleration(forcesX[0], forcesX[1],
-                                        forcesX[2]);  // force due to right particle spring
-        particles[x + 1][y].addAcceleration(forcesX[0] * -1, forcesX[1] * -1,
-                                            forcesX[2] * -1);  // opposite force on right particle
-
-        particles[x][y].calculateAcceleration(mass, damping);
-        particles[x][y].applyAcceleration(step);  // update velocity according to time step
-      }
-
-    for (int x = 0; x < NX; x++)  // set all acceleration to zero
-      for (int y = 0; y < NY; y++) particles[x][y].resetAcceleration();
+    for (int x = 0; x < nX + 1; x++)  // set all acceleration to zero
+      for (int y = 0; y < nY + 1; y++)
+        for (int z = 0; z < nZ + 1; z++) particles[x][y][z].resetAcceleration();
   }
 
   std::array<double, 3> calculateForces(Particle &first, Particle &second, double springLength,
@@ -362,18 +399,18 @@ struct ParticleNetwork {
 
   void retune(std::vector<float> newScale) {
     scale = newScale;
-    int step = 0;
     int octave = 1;
     for (int x = 1; x <= nX; x++) {
       for (int y = 1; y <= nY; y++) {
-        // if (step == scale.size() - 1) {
-        //   octave *= scale[scale.size() - 1];
-        //   step = 0;
-        // }
-        particles[x][y].setScaleStep(step);
-        particles[x][y].setTuningRatio(getScaleRatio(step));
-        particles[x][y].setFreq(particles[x][y].getTuningRatio() * tuningRoot);
-        step++;
+        for (int z = 1; z <= nZ; z++) {
+          // if (step == scale.size() - 1) {
+          //   octave *= scale[scale.size() - 1];
+          //   step = 0;
+          // }
+          particles[x][y][z].setScaleStep(particles[x][y][z].getParticleNumber());
+          particles[x][y][z].setTuningRatio(getScaleRatio(particles[x][y][z].getParticleNumber()));
+          particles[x][y][z].setFreq(particles[x][y][z].getTuningRatio() * tuningRoot);
+        }
       }
     }
   }
@@ -381,7 +418,9 @@ struct ParticleNetwork {
   void retune() {
     for (int x = 1; x <= nX; x++) {
       for (int y = 1; y <= nY; y++) {
-        particles[x][y].setFreq(particles[x][y].getTuningRatio() * tuningRoot);
+        for (int z = 1; z <= nZ; z++) {
+          particles[x][y][z].setFreq(particles[x][y][z].getTuningRatio() * tuningRoot);
+        }
       }
     }
   }
@@ -407,23 +446,26 @@ struct ParticleNetwork {
 
   int sizeX() { return nX; }
   int sizeY() { return nY; }
+  int sizeZ() { return nZ; }
 
   void setFreedom(bool x, bool y, bool z) { freedom = {x, y, z}; }
 
   void setMass(float newMass) { mass = newMass; }
   void setDamping(float newDamping) { damping = newDamping; }
 
-  std::vector<std::vector<Particle>> particles;
+  std::vector<std::vector<std::vector<Particle>>> particles;
   double springLength;    // Spacing between particles
   al::Mesh particleMesh;  // mesh for drawing particle
   std::vector<Spring *> xSprings;
   std::vector<Spring *> ySprings;
+  std::vector<Spring *> zSprings;
 
  private:
   float tuningRoot;
   std::vector<float> scale;
   int nX;
   int nY;
+  int nZ;
   std::array<bool, 3> freedom{0, 0, 0};
   float mass;
   float damping;

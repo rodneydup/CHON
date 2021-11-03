@@ -114,8 +114,10 @@ class CHON : public App {
 
   //   virtual void onExit() override;
 
-  int xParticles = 4;     // Parameter for x particles count
-  int yParticles = 1;     // Parameter for y particles count
+  int xParticles = 4;  // Parameter for x particles count
+  int yParticles = 1;  // Parameter for y particles count
+  int zParticles = 1;  // Parameter for z particles count
+
   al::Mesh particleMesh;  // mesh for drawing particle
 
   Particle *rightClickedParticle;
@@ -124,7 +126,8 @@ class CHON : public App {
   float rightClickedAmplitude = 1;
   int rightClickedStep = 1;
 
-  ParticleNetwork particleNetwork{xParticles, yParticles};  // 2D vector containing our Particles
+  ParticleNetwork particleNetwork{xParticles, yParticles,
+                                  zParticles};  // 3D vector containing our Particles
 
   Texture texBlur;  // blurring filter for graph
   int amCounter;    // AM incrementor
@@ -151,52 +154,54 @@ class CHON : public App {
   */
   std::unique_ptr<ChonBundle> xSpringGUI;
   std::unique_ptr<ChonBundle> ySpringGUI;
-  Parameter mass{"Mass", "physics", 1.0f, "", 1.0f, 100.0f};      // Master mass
-  Parameter damping{"Damping", "physics", 0.0f, "", 0.0f, 3.0f};  // damping
+  std::unique_ptr<ChonBundle> zSpringGUI;
+  Parameter mass{"Mass", "physics", 1.0f, 1.0f, 100.0f};      // Master mass
+  Parameter damping{"Damping", "physics", 0.0f, 0.0f, 3.0f};  // damping
   ParameterBool xFree{"X axis", "Degrees of Freedom", 1};
   ParameterBool yFree{"Y axis", "Degrees of Freedom", 0};
   ParameterBool zFree{"Z axis", "Degrees of Freedom", 0};
   ParameterBool pause{"Pause (press p)", "physics", 0};  // Pause Simulation
 
-  ParameterBool DrawGraph{"Draw Graph", "draw", 1};               // Toggle Drawing Graph
-  Parameter graphSpread{"Spread", "draw", 0.0f, "", 0.0f, 1.0f};  // Graph spread
-  Parameter graphSpeed{"Speed", "draw", 10.0f, "", 1.0f, 30.0f};  // Graph draw speed
+  ParameterBool DrawGraph{"Draw Graph", "draw", 1};           // Toggle Drawing Graph
+  Parameter graphSpread{"Spread", "draw", 0.0f, 0.0f, 1.0f};  // Graph spread
+  Parameter graphSpeed{"Speed", "draw", 10.0f, 1.0f, 30.0f};  // Graph draw speed
   ParameterMenu graphAxis{"Graph Axis"};  // choose which axis displacement to draw
   ParameterBool drawParticles{"Draw Particles", "draw", 1};    // Toggle drawing particles
   ParameterBool drawBoundaries{"Draw Boundaries", "draw", 0};  // Toggle drawing boundaries
 
-  ParameterBool stereoOn{"Stereo", "Synthesis", 0};                     // Stereo Mode toggle
-  ParameterMenu tuningScale{"Scale"};                                   // Tuning of Bell synth
-  Parameter tuningRoot{"Root", "Synthesis", 60.0f, "", 1.0f, 1000.0f};  // Root of bell tuning
-  ParameterBool additiveSynthOn{"Additive Synth On", "Synthesis", 0};   // Additive Synth toggle
-  ParameterBool bellSynthOn{"Bell Synth On", "Synthesis", 0};           // Bell Synth toggle
+  ParameterBool stereoOn{"Stereo", "Synthesis", 0};                    // Stereo Mode toggle
+  ParameterMenu tuningScale{"Scale"};                                  // Tuning of Bell synth
+  Parameter tuningRoot{"Root", "Synthesis", 60.0f, 1.0f, 1000.0f};     // Root of bell tuning
+  ParameterBool additiveSynthOn{"Additive Synth On", "Synthesis", 0};  // Additive Synth toggle
+  ParameterBool bellSynthOn{"Bell Synth On", "Synthesis", 0};          // Bell Synth toggle
   ParameterMenu bellAxis{"Axis##bell"};
 
-  Parameter bellVolume{"Volume##bell", "Synthesis", 0.5f, "", 0.0f, 1.0f};  // Volume of bell synth
+  Parameter bellVolume{"Volume##bell", "Synthesis", 0.5f, 0.0f, 1.0f};  // Volume of bell synth
 
-  Parameter additiveVolume{
-    "Volume##additive", "Synthesis", 0.5f, "", 0.0f, 1.0f};  // Volume of bell synth
+  Parameter additiveVolume{"Volume##additive", "Synthesis", 0.5f, 0.0f,
+                           1.0f};  // Volume of bell synth
 
   ParameterBool fm{"FM On", "Synthesis", 0};  // FM toggle
   ParameterMenu fmAxis{"Axis##FM"};
-  Parameter fmFreq{
-    "Frequency##FM", "Synthesis", 1.5f, "", 0.0f, 2.0f};              // FM freq (ratio to carrier)
-  Parameter fmWidth{"Width##FM", "Synthesis", 2.0f, "", 0.1f, 5.0f};  // FM Width
+  Parameter fmFreq{"Frequency##FM", "Synthesis", 1.5f, 0.0f, 2.0f};  // FM freq (ratio to carrier)
+  Parameter fmWidth{"Width##FM", "Synthesis", 2.0f, 0.1f, 5.0f};     // FM Width
 
   ParameterBool am{"AM On", "Synthesis", 0};  // AM toggle
   ParameterMenu amAxis{"Axis##AM"};
 
-  ParameterBool reverbOn{"Reverb On", "Synthesis", 0};               // Reverb
-  Parameter reverbTail{"Tail", "Synthesis", 0.15f, "", 0.0f, 1.0f};  // Reverb decay time
+  ParameterBool reverbOn{"Reverb On", "Synthesis", 0};           // Reverb
+  Parameter reverbTail{"Tail", "Synthesis", 0.15f, 0.0f, 1.0f};  // Reverb decay time
 
   ParameterBool inputOn{"Input On", "Audio", 0};
   ParameterMenu inputMode{"Input Mode"};
   ParameterBool driveStereoSplit{"Stereo Split", "Audio", 0};
   ParameterInt driveParticleXLeft{"X##Left", "Audio", 1, 1, 2};
   ParameterInt driveParticleYLeft{"Y##Left", "Audio", 1, 1, 2};
+  ParameterInt driveParticleZLeft{"Z##Left", "Audio", 1, 1, 2};
   ParameterMenu driveAxisLeft{"Drive Axis##Left"};
   ParameterInt driveParticleXRight{"X##Right", "Audio", 1, 1, 2};
   ParameterInt driveParticleYRight{"Y##Right", "Audio", 1, 1, 2};
+  ParameterInt driveParticleZRight{"Y##Right", "Audio", 1, 1, 2};
   ParameterMenu driveAxisRight{"Drive Axis##Right"};
   Parameter inputThreshold{"Input Threshold", "Audio", 1.0f, 0.0f, 2.0f};
   Parameter inputScale{"Input Scaling", "Audio", 1.0f, 0.1f, 2.0f};
