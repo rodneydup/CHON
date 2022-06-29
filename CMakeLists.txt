@@ -153,7 +153,7 @@ target_link_libraries(${LIB_NAME} PUBLIC
 ) 
 
 if(LINUX)
-  target_link_libraries(${APP_NAME} PUBLIC ${GTK3_LIBRARIES})
+  target_link_libraries(${LIB_NAME} PUBLIC ${GTK3_LIBRARIES})
 endif()
 
 # Link windows libraries.
