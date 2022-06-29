@@ -145,7 +145,8 @@ class CHON : public App {
   std::unique_ptr<al::PresetHandler> mPresets;
 
   float windowWidth, windowHeight;
-  bool isFullScreen, isFirstLaunch;
+  bool isFirstLaunch;
+  bool saveDefaultAudio = false;
 
   bool drawGUI = 1;
 
@@ -238,6 +239,11 @@ class CHON : public App {
     std::cout << addr << std::endl;
   }
 
+  std::string buf1 = "test.wav";
+  ImGuiInputTextCallback buf1Callback;
+  void *buf1CallbackUserData;
+  std::string recordFilename;
+
   ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
                            ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings |
                            ImGuiWindowFlags_AlwaysAutoResize | ImGuiCond_Once;
@@ -255,7 +261,7 @@ class CHON : public App {
 
   bool isPaused = false;
   double globalSamplingRate = consts::SAMPLE_RATE;
-  const int BLOCK_SIZE = 1024;
+  double globalBufferSize = consts::BUFFER_SIZE;
 
   int getLeadChannelOut() const { return AudioChanIndexOut[0]; }
   int getLeadChannelIn() const { return AudioChanIndexIn[0]; }
@@ -287,7 +293,7 @@ class CHON : public App {
     }
   }
   int getSampleRateIndex() {
-    unsigned s_r = (unsigned)globalSamplingRate;
+    unsigned s_r = (unsigned)getGlobalSamplingRate();
     switch (s_r) {
       case 44100:
         return 0;
@@ -301,12 +307,37 @@ class CHON : public App {
         return 0;
     }
   }
+
+  int getBufSizeIndex() {
+    unsigned bufSize = (int)getGlobalBufferSize();
+    switch (bufSize) {
+      case 128:
+        return 0;
+      case 256:
+        return 1;
+      case 512:
+        return 2;
+      case 1024:
+        return 3;
+      case 2048:
+        return 4;
+      default:
+        return 0;
+    }
+  }
+
+  void setGlobalSamplingRate(float sampling_rate) { globalSamplingRate = sampling_rate; }
+  double getGlobalSamplingRate() { return globalSamplingRate; }
+
+  void setGlobalBufferSize(float buffer_size) { globalBufferSize = buffer_size; }
+  double getGlobalBufferSize() { return globalBufferSize; }
+
   void setSoundOutputPath(std::string sound_output_path) {
     soundOutput = al::File::conformPathToOS(sound_output_path);
   }
-  void setAudioSettings(float sample_rate) {
+  void setAudioSettings(float sample_rate, int buffer_size) {
     globalSamplingRate = sample_rate;
-    configureAudio(sample_rate, consts::BLOCK_SIZE, consts::MAX_AUDIO_OUTS, -1);
+    configureAudio(sample_rate, buffer_size, consts::MAX_AUDIO_OUTS, -1);
   }
   void setWindowDimensions(float width, float height) {
     windowWidth = width;
@@ -314,8 +345,8 @@ class CHON : public App {
     dimensions(width, height);
   }
   void setFirstLaunch(bool is_first_launch) { isFirstLaunch = is_first_launch; }
-  void setAudioDevice(std::string audio_device) { currentAudioDeviceOut = audio_device; }
-  void setInitFullscreen(bool fullscreen) { isFullScreen = fullscreen; }
+  void setAudioDeviceOut(std::string audio_device) { currentAudioDeviceOut = audio_device; }
+  void setAudioDeviceIn(std::string audio_device) { currentAudioDeviceIn = audio_device; }
 
   // JSON config file stuff
   bool initJsonConfig() {
@@ -332,6 +363,9 @@ class CHON : public App {
       if (config.find(consts::SAMPLE_RATE_KEY) == config.end())
         config[consts::SAMPLE_RATE_KEY] = consts::SAMPLE_RATE;
 
+      if (config.find(consts::BUFFER_SIZE_KEY) == config.end())
+        config[consts::BUFFER_SIZE_KEY] = consts::BUFFER_SIZE;
+
       // if (config.find(con::FONT_SCALE_KEY) == config.end())
       //   config[con::FONT_SCALE_KEY] = con::FONT_SCALE;
 
@@ -341,20 +375,20 @@ class CHON : public App {
       if (config.find(consts::WINDOW_HEIGHT_KEY) == config.end())
         config[consts::WINDOW_HEIGHT_KEY] = consts::WINDOW_HEIGHT;
 
-      if (config.find(consts::FULLSCREEN_KEY) == config.end())
-        config[consts::FULLSCREEN_KEY] = consts::FULLSCREEN;
-
       if (config.find(consts::IS_FIRST_LAUNCH_KEY) == config.end())
         config[consts::IS_FIRST_LAUNCH_KEY] = consts::IS_FIRST_LAUNCH;
 
-      if (config.find(consts::DEFAULT_AUDIO_DEVICE_KEY) == config.end())
-        config[consts::DEFAULT_AUDIO_DEVICE_KEY] = consts::DEFAULT_AUDIO_DEVICE;
+      if (config.find(consts::DEFAULT_AUDIO_DEVICE_OUT_KEY) == config.end())
+        config[consts::DEFAULT_AUDIO_DEVICE_OUT_KEY] = consts::DEFAULT_AUDIO_DEVICE_OUT;
+
+      if (config.find(consts::DEFAULT_AUDIO_DEVICE_IN_KEY) == config.end())
+        config[consts::DEFAULT_AUDIO_DEVICE_IN_KEY] = consts::DEFAULT_AUDIO_DEVICE_IN;
 
       if (config.find(consts::LEAD_CHANNEL_OUT_KEY) == config.end())
-        config[consts::LEAD_CHANNEL_OUT_KEY] = consts::DEFAULT_LEAD_CHANNEL;
+        config[consts::LEAD_CHANNEL_OUT_KEY] = consts::DEFAULT_LEAD_CHANNEL_OUT;
 
       if (config.find(consts::LEAD_CHANNEL_IN_KEY) == config.end())
-        config[consts::LEAD_CHANNEL_IN_KEY] = consts::DEFAULT_LEAD_CHANNEL;
+        config[consts::LEAD_CHANNEL_IN_KEY] = consts::DEFAULT_LEAD_CHANNEL_IN;
 
     } else {
       config[consts::SOUND_OUTPUT_PATH_KEY] =
@@ -362,21 +396,23 @@ class CHON : public App {
 
       config[consts::SAMPLE_RATE_KEY] = consts::SAMPLE_RATE;
 
+      config[consts::BUFFER_SIZE_KEY] = consts::BUFFER_SIZE;
+
       // config[con::FONT_SCALE_KEY] = con::FONT_SCALE;
 
       config[consts::WINDOW_WIDTH_KEY] = consts::WINDOW_WIDTH;
 
       config[consts::WINDOW_HEIGHT_KEY] = consts::WINDOW_HEIGHT;
 
-      config[consts::FULLSCREEN_KEY] = consts::FULLSCREEN;
-
       config[consts::IS_FIRST_LAUNCH_KEY] = consts::IS_FIRST_LAUNCH;
 
-      config[consts::DEFAULT_AUDIO_DEVICE_KEY] = consts::DEFAULT_AUDIO_DEVICE;
+      config[consts::DEFAULT_AUDIO_DEVICE_OUT_KEY] = consts::DEFAULT_AUDIO_DEVICE_OUT;
 
-      config[consts::LEAD_CHANNEL_OUT_KEY] = consts::DEFAULT_LEAD_CHANNEL;
+      config[consts::DEFAULT_AUDIO_DEVICE_IN_KEY] = consts::DEFAULT_AUDIO_DEVICE_IN;
 
-      config[consts::LEAD_CHANNEL_IN_KEY] = consts::DEFAULT_LEAD_CHANNEL;
+      config[consts::LEAD_CHANNEL_OUT_KEY] = consts::DEFAULT_LEAD_CHANNEL_OUT;
+
+      config[consts::LEAD_CHANNEL_IN_KEY] = consts::DEFAULT_LEAD_CHANNEL_IN;
     }
     std::ofstream file((userPath + configFile).c_str());
     if (file.is_open()) file << config;
@@ -414,6 +450,8 @@ class CHON : public App {
     }
   }
 
+  json config;
+
   std::string getExecutablePath() {
 #if _WIN32
     char *exePath;
@@ -424,7 +462,7 @@ class CHON : public App {
     ssize_t len = ::readlink("/proc/self/exe", exePath, sizeof(exePath));
     if (len == -1 || len == sizeof(exePath)) len = 0;
     exePath[len] = '\0';
-#else  // THIS MEANS YOU ARE USING A >
+#else
     char exePath[PATH_MAX];
     uint32_t len = sizeof(exePath);
     if (_NSGetExecutablePath(exePath, &len) != 0) {
@@ -463,6 +501,9 @@ class CHON : public App {
   std::string result = strdup(homedir);
   return result;
 }
+
+  IMGUI_API bool InputText(const char *label, std::string *str, ImGuiInputTextFlags flags = 0,
+                           ImGuiInputTextCallback callback = NULL, void *user_data = NULL);
 
 
   // Audio input buffers

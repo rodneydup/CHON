@@ -55,8 +55,8 @@ class SmoothValue {
     b = 1.0f - a;
   }
 
-  T targetValue;      // what is the destination (of type T, determind by implementation)
-  T currentValue;     // how close to the destination? (output value)
+  T targetValue = 0;      // what is the destination (of type T, determind by implementation)
+  T currentValue = 0;     // how close to the destination? (output value)
   float arrivalTime;  // how long to take
   float a, b;         // coefficients
   T linStep;          // size of step in linear interpolation
@@ -86,6 +86,7 @@ struct Particle {
     bell.freq(freq);
     bellEnv = 0;
     amSmooth.setTime(20.0f);
+    amSmooth.setTarget(0.0f);
     fmSmooth.setTime(20.0f);
     panSmooth.setTime(20.0f);
     graphMesh.primitive(al::Mesh::LINE_STRIP);

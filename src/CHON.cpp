@@ -7,6 +7,7 @@
 //    - Accept OSC in to control some parameters
 
 #include "CHON.hpp"
+#include "consts.hpp"
 
 #include <array>
 
@@ -56,13 +57,12 @@ void CHON::onInit() {  // Called on app start
 #endif
 
   initJsonConfig();
-  json config = jsonReadConfig();
+  config = jsonReadConfig();
   setSoundOutputPath(config.at(consts::SOUND_OUTPUT_PATH_KEY));
-  setAudioSettings(config.at(consts::SAMPLE_RATE_KEY));
-  setWindowDimensions(config.at(consts::WINDOW_WIDTH_KEY), config.at(consts::WINDOW_HEIGHT_KEY));
+  setAudioSettings(config.at(consts::SAMPLE_RATE_KEY), config.at(consts::BUFFER_SIZE_KEY));
   setFirstLaunch(config.at(consts::IS_FIRST_LAUNCH_KEY));
-  setAudioDevice(config.at(consts::DEFAULT_AUDIO_DEVICE_KEY));
-  setInitFullscreen(false);
+  setAudioDeviceOut(config.at(consts::DEFAULT_AUDIO_DEVICE_OUT_KEY));
+  setAudioDeviceIn(config.at(consts::DEFAULT_AUDIO_DEVICE_IN_KEY));
 
   // Set output directory for presets.
   // Set output directory of recorded files.
@@ -216,7 +216,9 @@ void CHON::onCreate() {  // Called when graphics context is available
   io.IniFilename = NULL;
 
   // Set if fullscreen or not.
-  fullScreen(isFullScreen);
+  fullScreen(false);
+  setWindowDimensions(config.at(consts::WINDOW_WIDTH_KEY), config.at(consts::WINDOW_HEIGHT_KEY));
+
 
   chonReset();
 
@@ -1105,6 +1107,7 @@ void CHON::drawAudioIO(AudioIO *io) {
       io->stop();
       io->close();
       state.currentSr = getSampleRateIndex();
+      state.currentBufSize = getBufSizeIndex();
     }
   } else {
     if (ImGui::Button("Update Devices")) {
@@ -1119,10 +1122,12 @@ void CHON::drawAudioIO(AudioIO *io) {
       state.currentMaxOut =
         AudioDevice(state.devicesOut.at(state.currentDeviceOut), AudioDevice::OUTPUT).channelsOutMax();
     }
+    ImGui::PopItemWidth();
     std::string chan_label_out =
       "Select Outs: (Up to " + std::to_string(state.currentMaxOut) + " )";
     ImGui::Text(chan_label_out.c_str(), "%s");
-    ImGui::SameLine();
+    ImGui::Indent(25);
+    ImGui::PushItemWidth(50);
     ImGui::DragInt("Chan 1 out", &state.currentOut, 1.0f, 0, state.currentMaxOut - 1, "%d", 1 << 4);
 
     if (state.currentOut > state.currentMaxOut - 1) state.currentOut = state.currentMaxOut - 1;
@@ -1137,7 +1142,7 @@ void CHON::drawAudioIO(AudioIO *io) {
     }
     ImGui::PopStyleVar();
 
-    // ImGui::Unindent(25 * fontScale);
+    ImGui::Unindent(25);
     ImGui::PopItemWidth();
 
     ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
@@ -1147,9 +1152,11 @@ void CHON::drawAudioIO(AudioIO *io) {
       state.currentMaxIn =
         AudioDevice(state.devicesIn.at(state.currentDeviceIn), AudioDevice::INPUT).channelsInMax();
     }
+    ImGui::PopItemWidth();
     std::string chan_label_in = "Select Ins: (Up to " + std::to_string(state.currentMaxIn) + " )";
     ImGui::Text(chan_label_in.c_str(), "%s");
-    ImGui::SameLine();
+    ImGui::Indent(25);
+    ImGui::PushItemWidth(50);
     ImGui::DragInt("Chan 1 in", &state.currentIn, 1.0f, 0, state.currentMaxIn - 1, "%d", 1 << 4);
 
     if (state.currentIn > state.currentMaxIn - 1) state.currentIn = state.currentMaxIn - 1;
@@ -1164,27 +1171,46 @@ void CHON::drawAudioIO(AudioIO *io) {
     }
     ImGui::PopStyleVar();
 
-    // ImGui::Unindent(25 * fontScale);
+    ImGui::Unindent(25);
     ImGui::PopItemWidth();
 
-    std::vector<std::string> samplingRates{"44100", "48000", "88200", "96000"};
-    ImGui::Combo("Sampling Rate", &state.currentSr, ParameterGUI::vector_getter,
-                 static_cast<void *>(&samplingRates), samplingRates.size());
+       std::vector<std::string> samplingRates{"44100", "48000", "88200", "96000"};
+    if (ImGui::Combo("Sampling Rate", &state.currentSr, ParameterGUI::vector_getter,
+                     static_cast<void *>(&samplingRates), samplingRates.size())) {
+      setGlobalSamplingRate(std::stof(samplingRates[state.currentSr]));
+      io->framesPerSecond(getGlobalSamplingRate());
+    }
+    std::vector<std::string> bufferSizes{"128", "256", "512", "1024", "2048"};
+    if (ImGui::Combo("Buffer Size", &state.currentBufSize, ParameterGUI::vector_getter,
+                     static_cast<void *>(&bufferSizes), bufferSizes.size())) {
+      setGlobalBufferSize(std::stof(bufferSizes[state.currentBufSize]));
+      io->framesPerBuffer(getGlobalBufferSize());
+    }
     if (ImGui::Button("Start")) {
-      globalSamplingRate = std::stof(samplingRates[state.currentSr]);
-      io->framesPerSecond(globalSamplingRate);
-      io->framesPerBuffer(BLOCK_SIZE);
+      setGlobalSamplingRate(std::stof(samplingRates[state.currentSr]));
+      setGlobalBufferSize(std::stof(bufferSizes[state.currentBufSize]));
+      io->framesPerSecond(getGlobalSamplingRate());
+      io->framesPerBuffer(getGlobalBufferSize());
       io->deviceOut(AudioDevice(state.devicesOut.at(state.currentDeviceOut), AudioDevice::OUTPUT));
       currentAudioDeviceOut = state.devicesOut.at(state.currentDeviceOut);
       setOutChannels(state.currentOut - 1, state.currentMaxOut);
       io->deviceIn(AudioDevice(state.devicesIn.at(state.currentDeviceIn), AudioDevice::INPUT));
       currentAudioDeviceIn = state.devicesIn.at(state.currentDeviceIn);
       setInChannels(state.currentIn - 1, state.currentMaxIn);
+      if (saveDefaultAudio) {
+        jsonWriteToConfig(getGlobalSamplingRate(), consts::SAMPLE_RATE_KEY);
+        jsonWriteToConfig(getGlobalBufferSize(), consts::BUFFER_SIZE_KEY);
+        jsonWriteToConfig(currentAudioDeviceOut, consts::DEFAULT_AUDIO_DEVICE_OUT_KEY);
+        jsonWriteToConfig(currentAudioDeviceIn, consts::DEFAULT_AUDIO_DEVICE_IN_KEY);
+        jsonWriteToConfig(state.currentOut - 1, consts::LEAD_CHANNEL_OUT_KEY);
+        jsonWriteToConfig(state.currentIn - 1, consts::LEAD_CHANNEL_IN_KEY);
+      }
       io->open();
       io->start();
       isPaused = false;
     }
     ImGui::SameLine();
+    ImGui::Checkbox("Set as Default", &saveDefaultAudio);
   }
   ImGui::PopID();
 }
@@ -1202,11 +1228,10 @@ void CHON::drawRecorderWidget(al::OutputRecorder *recorder, double frameRate, ui
   SoundfileRecorderState &state = stateMap[recorder];
   ImGui::PushID(std::to_string((unsigned long)recorder).c_str());
   ImGui::Text("Output File Name:");
-  static char buf1[64] = "test.wav";
   ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 10.0f);
-  ImGui::InputText("##Record Name", buf1, 63);
+  InputText("##Record Name", &buf1, ImGuiInputTextFlags_EnterReturnsTrue, buf1Callback,
+            buf1CallbackUserData);  
   ImGui::PopItemWidth();
-
   if (state.recordButton) {
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9, 0.3, 0.3, 1.0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8, 0.5, 0.5, 1.0));
@@ -1222,6 +1247,15 @@ void CHON::drawRecorderWidget(al::OutputRecorder *recorder, double frameRate, ui
   if (recordButtonClicked) {
     state.recordButton = !state.recordButton;
     if (state.recordButton) {
+    // checking that file name is valid
+      if (buf1.empty()) {
+        buf1.append("EC2_Output.wav");
+      } else if (buf1.size() < 5) {
+        buf1.append(".wav");
+      } else if (buf1.substr(buf1.size() - 4, 4) != ".wav") {
+        buf1.append(".wav");
+      }
+
       uint32_t ringBufferSize;
       if (bufferSize == 0) {
         ringBufferSize = 8192;
@@ -1254,10 +1288,47 @@ void CHON::drawRecorderWidget(al::OutputRecorder *recorder, double frameRate, ui
   ImGui::PopID();
 }
 
+struct InputTextCallback_UserData {
+  std::string *Str;
+  ImGuiInputTextCallback ChainCallback;
+  void *ChainCallbackUserData;
+};
+
+static int InputTextCallback(ImGuiInputTextCallbackData *data) {
+  InputTextCallback_UserData *user_data = (InputTextCallback_UserData *)data->UserData;
+  if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
+    // Resize string callback
+    // If for some reason we refuse the new length
+    // (BufTextLen) and/or capacity (BufSize) we need
+    // to set them back to what we want.
+    std::string *str = user_data->Str;
+    IM_ASSERT(data->Buf == str->c_str());
+    str->resize(data->BufTextLen);
+    data->Buf = (char *)str->c_str();
+  } else if (user_data->ChainCallback) {
+    // Forward to user callback, if any
+    data->UserData = user_data->ChainCallbackUserData;
+    return user_data->ChainCallback(data);
+  }
+  return 0;
+};
+
+bool CHON::InputText(const char *label, std::string *str, ImGuiInputTextFlags flags,
+                            ImGuiInputTextCallback callback, void *user_data) {
+  IM_ASSERT((flags & ImGuiInputTextFlags_CallbackResize) == 0);
+  flags |= ImGuiInputTextFlags_CallbackResize;
+
+  InputTextCallback_UserData cb_user_data;
+  cb_user_data.Str = str;
+  cb_user_data.ChainCallback = callback;
+  cb_user_data.ChainCallbackUserData = user_data;
+  return ImGui::InputText(label, (char *)str->c_str(), str->capacity() + 1, flags,
+                          InputTextCallback, &cb_user_data);
+}
+
 void CHON::onExit() {
-  jsonWriteToConfig(windowWidth, consts::WINDOW_WIDTH_KEY);
-  jsonWriteToConfig(windowHeight, consts::WINDOW_HEIGHT_KEY);
-  jsonWriteToConfig(isFullScreen, consts::FULLSCREEN_KEY);
+  jsonWriteToConfig(w, consts::WINDOW_WIDTH_KEY);
+  jsonWriteToConfig(h, consts::WINDOW_HEIGHT_KEY);
   jsonWriteToConfig(false, consts::IS_FIRST_LAUNCH_KEY);
 }
 
