@@ -204,7 +204,8 @@ class CHON : public App {
   ParameterInt driveParticleZRight{"Y##Right", "Audio", 1, 1, 2};
   ParameterMenu driveAxisRight{"Drive Axis##Right"};
   Parameter inputThreshold{"Input Threshold", "Audio", 1.0f, 0.0f, 2.0f};
-  Parameter inputScale{"Input Scaling", "Audio", 1.0f, 0.1f, 2.0f};
+  Parameter inputScale{"Input Scaling", "Audio", 1.0f, 0.1f, 10.0f};
+  Parameter FFTlog{"Logarithmic Scaling", "Audio", 2.0f, 1.0f, 10.0f};
   ParameterInt rmsSize{"RMS Samples", "Audio", 2048, 512, 4096};
 
   /*
@@ -249,11 +250,8 @@ class CHON : public App {
   std::string currentAudioDeviceOut;
   std::string currentAudioDeviceIn;
 
-  static const int MAX_AUDIO_OUTS = 2;
-  static const int MAX_AUDIO_INS = 2;
-
-  std::array<unsigned int, MAX_AUDIO_OUTS> AudioChanIndexOut;
-  std::array<unsigned int, MAX_AUDIO_INS> AudioChanIndexIn;
+  std::array<unsigned int, consts::MAX_AUDIO_OUTS> AudioChanIndexOut;
+  std::array<unsigned int, consts::MAX_AUDIO_INS> AudioChanIndexIn;
 
   bool isPaused = false;
   double globalSamplingRate = consts::SAMPLE_RATE;
@@ -265,12 +263,12 @@ class CHON : public App {
   void setOutChannels(int lead_channel, int max_possible_channels) {
     AudioChanIndexOut[0] = lead_channel;
     if (max_possible_channels == 1) {
-      for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
+      for (int i = 1; i < consts::MAX_AUDIO_OUTS; i++) {
         AudioChanIndexOut[i] = lead_channel;
       }
     } else {
       // assert(lead_channel + (consts::MAX_AUDIO_OUTS) < max_possible_channels);
-      for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
+      for (int i = 1; i < consts::MAX_AUDIO_OUTS; i++) {
         AudioChanIndexOut[i] = lead_channel + i;
       }
     }
@@ -278,12 +276,12 @@ class CHON : public App {
   void setInChannels(int lead_channel, int max_possible_channels) {
     AudioChanIndexIn[0] = lead_channel;
     if (max_possible_channels == 1) {
-      for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
+      for (int i = 1; i < consts::MAX_AUDIO_INS; i++) {
         AudioChanIndexIn[i] = lead_channel;
       }
     } else {
       // assert(lead_channel + (consts::MAX_AUDIO_OUTS) < max_possible_channels);
-      for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
+      for (int i = 1; i < consts::MAX_AUDIO_INS; i++) {
         AudioChanIndexIn[i] = lead_channel + i;
       }
     }
@@ -352,8 +350,11 @@ class CHON : public App {
       if (config.find(consts::DEFAULT_AUDIO_DEVICE_KEY) == config.end())
         config[consts::DEFAULT_AUDIO_DEVICE_KEY] = consts::DEFAULT_AUDIO_DEVICE;
 
-      if (config.find(consts::LEAD_CHANNEL_KEY) == config.end())
-        config[consts::LEAD_CHANNEL_KEY] = consts::DEFAULT_LEAD_CHANNEL;
+      if (config.find(consts::LEAD_CHANNEL_OUT_KEY) == config.end())
+        config[consts::LEAD_CHANNEL_OUT_KEY] = consts::DEFAULT_LEAD_CHANNEL;
+
+      if (config.find(consts::LEAD_CHANNEL_IN_KEY) == config.end())
+        config[consts::LEAD_CHANNEL_IN_KEY] = consts::DEFAULT_LEAD_CHANNEL;
 
     } else {
       config[consts::SOUND_OUTPUT_PATH_KEY] =
@@ -373,7 +374,9 @@ class CHON : public App {
 
       config[consts::DEFAULT_AUDIO_DEVICE_KEY] = consts::DEFAULT_AUDIO_DEVICE;
 
-      config[consts::LEAD_CHANNEL_KEY] = consts::DEFAULT_LEAD_CHANNEL;
+      config[consts::LEAD_CHANNEL_OUT_KEY] = consts::DEFAULT_LEAD_CHANNEL;
+
+      config[consts::LEAD_CHANNEL_IN_KEY] = consts::DEFAULT_LEAD_CHANNEL;
     }
     std::ofstream file((userPath + configFile).c_str());
     if (file.is_open()) file << config;
@@ -411,16 +414,6 @@ class CHON : public App {
     }
   }
 
-  std::string getUserHomePath() {
-    char homedir[PATH_MAX];
-#ifdef _WIN32
-    snprintf(homedir, sizeof(homedir), "%s%s", getenv("HOMEDRIVE"), getenv("HOMEPATH"));
-#else
-    snprintf(homedir, sizeof(homedir), "%s", getenv("HOME"));
-#endif
-    std::string result = strdup(homedir);
-    return result;
-  }
   std::string getExecutablePath() {
 #if _WIN32
     char *exePath;
@@ -448,6 +441,30 @@ class CHON : public App {
     return std::string(exePath);
   }
 
+
+  std::string getContentPath_OSX(std::string s) {
+  char delim = '/';
+  size_t counter = 0;
+  size_t i = s.size() - 1;
+  while (counter < 2) {
+    if (s[i] == delim) counter++;
+    i--;
+  }
+  return s.substr(0, i + 2);
+}
+
+  std::string getUserHomePath() {
+  char homedir[PATH_MAX];
+#ifdef _WIN32
+  snprintf(homedir, sizeof(homedir), "%s%s", getenv("HOMEDRIVE"), getenv("HOMEPATH"));
+#else
+  snprintf(homedir, sizeof(homedir), "%s", getenv("HOME"));
+#endif
+  std::string result = strdup(homedir);
+  return result;
+}
+
+
   // Audio input buffers
   unsigned int inBufferSize = 4096;
   RingBuffer inLeft{inBufferSize};
@@ -466,4 +483,5 @@ class CHON : public App {
   std::array<float, 129> fftBuffer = {};
   float fftDivision = 1;
   int fftIterator = 0;
+  int currentbin, lastbin = 0;
 };

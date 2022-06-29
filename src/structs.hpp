@@ -1,6 +1,6 @@
 #include <array>
 
-#include "Gamma/Filter.h"
+#include "../external/allolib/external/Gamma/Gamma/Filter.h"
 #include "Gamma/Noise.h"
 #include "Gamma/Oscillator.h"
 #include "al/app/al_App.hpp"
@@ -142,6 +142,7 @@ struct Particle {
     velocity[1] += y;
     velocity[2] += z;
   }
+  void addVelocity(int axis, double val) { velocity[axis] += val; }
 
   void velocityStep() {
     al::Vec3d position = {this->x() + this->velocity[0], this->y() + this->velocity[1],
@@ -274,7 +275,7 @@ struct Particle {
 
 struct ParticleNetwork {
  public:
-  ParticleNetwork(unsigned int x = 4, unsigned int y = 1, unsigned z = 1) {
+  ParticleNetwork(int x = 4, int y = 1, int z = 1) {
     nX = x;
     nY = y;
     nZ = z;
@@ -291,6 +292,7 @@ struct ParticleNetwork {
         particles[xRow][yRow].resize(nZ + 2);
       }
     }
+    nTotal = nX * nY * nZ;
   }
 
   Particle &operator()(int x, int y, int z) { return particles[x][y][z]; }
@@ -337,6 +339,7 @@ struct ParticleNetwork {
       }
     }
     retune(scale);
+    nTotal = nX * nY * nZ;
   }
 
   // Update velocities of a 2-D array of particles
@@ -399,7 +402,7 @@ struct ParticleNetwork {
 
   void retune(std::vector<float> newScale) {
     scale = newScale;
-    int octave = 1;
+    // int octave = 1;
     for (int x = 1; x <= nX; x++) {
       for (int y = 1; y <= nY; y++) {
         for (int z = 1; z <= nZ; z++) {
@@ -436,13 +439,14 @@ struct ParticleNetwork {
       while (stepNum < 0) {
         stepNum += scale.size() - 1;
       }
-      std::cout << stepNum << " x " << octave << std::endl;
       return ((octave * scale[stepNum]));
     } else {
       stepNum = stepNum % (scale.size() - 1);
       return scale[stepNum] * octave;
     }
   }
+
+  int totalSize() { return nTotal; }
 
   int sizeX() { return nX; }
   int sizeY() { return nY; }
@@ -466,6 +470,7 @@ struct ParticleNetwork {
   int nX;
   int nY;
   int nZ;
+  int nTotal = 1;
   std::array<bool, 3> freedom{0, 0, 0};
   float mass;
   float damping;
@@ -586,3 +591,5 @@ class ChonBundle {
   int mCurrentBundle{0};
   bool mBundleGlobal{false};
 };
+
+

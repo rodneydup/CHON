@@ -14,11 +14,13 @@ const std::string WINDOW_HEIGHT_KEY = "WINDOW_HEIGHT";
 const std::string FULLSCREEN_KEY = "FULLSCREEN";
 const std::string IS_FIRST_LAUNCH_KEY = "FIRST_LAUNCH";
 const std::string DEFAULT_AUDIO_DEVICE_KEY = "DEFAULT_AUDIO_DEVICE";
-const std::string LEAD_CHANNEL_KEY = "LEAD_CHANNEL";
+const std::string LEAD_CHANNEL_OUT_KEY = "LEAD_CHANNEL_OUT";
+const std::string LEAD_CHANNEL_IN_KEY = "LEAD_CHANNEL_IN";
 
 const int SAMPLE_RATE = 48000;
 const int BLOCK_SIZE = 1024;
 const int MAX_AUDIO_OUTS = 2;
+const int MAX_AUDIO_INS = 2;
 const float WINDOW_WIDTH = 1920;
 const float WINDOW_HEIGHT = 1080;
 const bool FULLSCREEN = false;

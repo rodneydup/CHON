@@ -4,3 +4,6 @@
 [submodule "al_ext"]
 	path = external/al_ext
 	url = https://github.com/AlloSphere-Research-Group/al_ext.git
+[submodule "external/nativefiledialog"]
+	path = external/nativefiledialog
+	url = https://github.com/mlabbe/nativefiledialog.git

@@ -19,17 +19,14 @@ void CHON::onInit() {  // Called on app start
 #ifdef __APPLE__  // Uses userPath
   configFile = consts::DEFAULT_CONFIG_FILE;
   presetsPath = consts::DEFAULT_PRESETS_PATH;
-  midiPresetsPath = consts::DEFAULT_MIDI_PRESETS_PATH;
-  oscPresetsPath = consts::DEFAULT_OSC_PRESETS_PATH;
+  // midiPresetsPath = consts::DEFAULT_MIDI_PRESETS_PATH;
+  // oscPresetsPath = consts::DEFAULT_OSC_PRESETS_PATH;
 
-  samplePresetsPath = consts::DEFAULT_SAMPLE_PRESETS_PATH;
-
-  execDir = util::getContentPath_OSX(execDir);
+  execDir = getContentPath_OSX(execDir);
   al::Dir::make(userPath + consts::PERSISTENT_DATA_PATH);
   al::Dir::make(userPath + consts::DEFAULT_PRESETS_PATH);
   al::Dir::make(userPath + consts::DEFAULT_SOUND_OUTPUT_PATH);
   al::Dir::make(userPath + consts::DEFAULT_CONFIG_PATH);
-  opener = "open ";
 #endif
 
 #ifdef __linux__
@@ -50,8 +47,6 @@ void CHON::onInit() {  // Called on app start
 #ifdef _WIN32
   configFile = consts::DEFAULT_CONFIG_FILE;
   presetsPath = consts::DEFAULT_PRESETS_PATH;
-  midiPresetsPath = consts::DEFAULT_MIDI_PRESETS_PATH;
-  oscPresetsPath = consts::DEFAULT_OSC_PRESETS_PATH;
   samplePresetsPath = consts::DEFAULT_SAMPLE_PRESETS_PATH;
 
   al::Dir::make(userPath + consts::PERSISTENT_DATA_PATH);
@@ -193,14 +188,24 @@ void CHON::onInit() {  // Called on app start
     setOutChannels(0, audioIO().channelsOutDevice());
   } else {
     audioIO().deviceOut(a_d);
-    setOutChannels(config.at(consts::LEAD_CHANNEL_KEY), audioIO().channelsOutDevice());
+    setOutChannels(config.at(consts::LEAD_CHANNEL_OUT_KEY), audioIO().channelsOutDevice());
     // TODO, make sure only 2 channels are open corresponding to out channels
     // audioIO().channelsOut({(int)config.at(consts::LEAD_CHANNEL_KEY),(int)config.at(consts::LEAD_CHANNEL_KEY)
     // + 1});
   }
+
+  a_d = AudioDevice(currentAudioDeviceIn, AudioDevice::INPUT);
+  if (!a_d.valid()) {
+    audioIO().deviceIn(-1);
+    currentAudioDeviceIn = AudioDevice::defaultInput().name();
+    setInChannels(0, audioIO().channelsInDevice());
+  } else {
+    audioIO().deviceIn(a_d);
+    setInChannels(config.at(consts::LEAD_CHANNEL_IN_KEY), audioIO().channelsInDevice());
+  }
+
   audioIO().setStreamName("CHON");
   audioIO().append(mRecorder);
-  audioIO().channelsIn(0);
 }
 
 void CHON::onCreate() {  // Called when graphics context is available
@@ -325,15 +330,23 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
           }
           break;
         case 2:  // Frequency
-          particleNetwork(1, 1, 1).addAcceleration(driveAxisLeft, fftBuffer[0] * inputScale);
-          for (unsigned int i = 1; i < fftBuffer.size(); i++) {
-            fftIterator = floor((log(i) / fftDivision) + 1);
-            particleNetwork(fftIterator % (particleNetwork.sizeX() + 1),
-                            ceil(fftIterator / float(particleNetwork.sizeX() + 1)),
-                            ceil(fftIterator / float(particleNetwork.sizeY() + 1)))
-              .addAcceleration(driveAxisLeft, fftBuffer[i] * inputScale);
+          currentbin = 0;
+          lastbin = 0;
+          for (int z = 1; z <= particleNetwork.sizeZ(); z++) {
+            for (int y = 1; y <= particleNetwork.sizeY(); y++) {
+              for (int x = 1; x <= particleNetwork.sizeX(); x++) {
+                currentbin = (pow(particleNetwork(x, y, z).getParticleNumber(), FFTlog) /
+                              pow(particleNetwork.totalSize(), FFTlog)) *
+                             fftBuffer.size();
+                for (int i = lastbin; i < currentbin; i++) {
+                  particleNetwork(x, y, z).addVelocity(driveAxisLeft,
+                                                       fftBuffer[i] * inputScale * dt * 4);
+                }
+                lastbin = currentbin;
+              }
+            }
           }
-          fftIterator = 0;
+          particleNetwork(1, 1, 1).addVelocity(driveAxisLeft, fftBuffer[0] * inputScale * dt);
           break;
         default:
           break;
@@ -364,8 +377,8 @@ void CHON::onAnimate(double dt) {  // Called once before drawing
                                                          0);  // move previous graph data left
             if (particleNetwork(x, y, z).graphMesh.vertices().size() > w)
               particleNetwork(x, y, z).graphMesh.vertices().erase(
-                particleNetwork(x, y, z).graphMesh.vertices().begin());  // erase left-edge graph
-                                                                         // data
+                particleNetwork(x, y, z).graphMesh.vertices().begin());  // erase left-edge
+                                                                         // graph data
             float graphY =
               h *
               particleNetwork(x, y, z).getDisplacement()[graphAxis];  // calculate new phase value
@@ -520,7 +533,7 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     ImGui::PopFont();
     ImGui::PushFont(bodyFont);
     ImGui::Text("Particle Count");
-    ImGui::PushItemWidth(100);
+    ImGui::PushItemWidth(90);
     ImGui::InputInt("x", &xParticles);
     if (xParticles * yParticles * zParticles > 100)
       xParticles = int(100 / yParticles / zParticles);
@@ -625,21 +638,32 @@ void CHON::onDraw(Graphics &g) {  // Draw function
     if (ImGui::CollapsingHeader("Input")) {
       ParameterGUI::drawParameterBool(&inputOn);
       ParameterGUI::drawMenu(&inputMode);
+      ImGui::PushItemWidth(90);
       if (inputMode != 2) {
         ParameterGUI::drawParameterBool(&driveStereoSplit);
-        if (driveStereoSplit) ImGui::Text("Left Channel");
+        if (driveStereoSplit)
+          ImGui::Text("Left Channel Driven Particle");
+        else
+          ImGui::Text("Driven Particle");
         ParameterGUI::drawParameterInt(&driveParticleXLeft, "");
+        ImGui::SameLine();
         ParameterGUI::drawParameterInt(&driveParticleYLeft, "");
+        ImGui::SameLine();
         ParameterGUI::drawParameterInt(&driveParticleZLeft, "");
       }
       ParameterGUI::drawMenu(&driveAxisLeft);
       if (driveStereoSplit && inputMode != 2) {
-        ImGui::Text("Right Channel");
+        ImGui::Text("Right Channel Driven Particle");
         ParameterGUI::drawParameterInt(&driveParticleXRight, "");
+        ImGui::SameLine();
         ParameterGUI::drawParameterInt(&driveParticleYRight, "");
+        ImGui::SameLine();
         ParameterGUI::drawParameterInt(&driveParticleZRight, "");
         ParameterGUI::drawMenu(&driveAxisRight);
       }
+      ImGui::PopItemWidth();
+      ImGui::Separator();
+      if (inputMode == 2) ParameterGUI::drawParameter(&FFTlog);
       ParameterGUI::drawParameter(&inputScale);
       if (inputMode != 2) ParameterGUI::drawParameter(&inputThreshold);
       if (inputMode == 1) ParameterGUI::drawParameterInt(&rmsSize, "");
@@ -821,7 +845,7 @@ void CHON::onSound(AudioIOData &io) {  // Audio callback
         case 2:  // Frequency
           if (stft((io.in(0) + io.in(1)) / 2)) {
             for (unsigned int i = 0; i < stft.numBins(); i++) {
-              fftBuffer[i] = abs(stft.bin(i)[0]);
+              fftBuffer[i] = stft.bin(i).mag();
             }
           }
           break;
@@ -960,16 +984,28 @@ bool CHON::onKeyDown(Keyboard const &k) {
       }
       return false;
     case Keyboard::UP:
-      nav().spinR(0.02);
+      if (k.shift())
+        nav().spinR(0.005);
+      else
+        nav().spinR(0.02);
       return false;
     case Keyboard::DOWN:
-      nav().spinR(-0.02);
+      if (k.shift())
+        nav().spinR(-0.005);
+      else
+        nav().spinR(-0.02);
       return false;
     case Keyboard::LEFT:
-      nav().spinU(0.02);
+      if (k.shift())
+        nav().spinU(0.005);
+      else
+        nav().spinU(0.02);
       return false;
     case Keyboard::RIGHT:
-      nav().spinU(-0.02);
+      if (k.shift())
+        nav().spinU(-0.005);
+      else
+        nav().spinU(-0.02);
       return false;
     default:
       break;
@@ -1006,17 +1042,18 @@ void CHON::drawAudioIO(AudioIO *io) {
     int currentIn = 1;
     int currentMaxOut;
     int currentMaxIn;
-    std::vector<std::string> devices;
+    std::vector<std::string> devicesOut;
+    std::vector<std::string> devicesIn;
   };
 
   auto updateOutDevices = [&](AudioIOState &state) {
-    state.devices.clear();
+    state.devicesOut.clear();
     int numDevices = AudioDevice::numDevices();
     int dev_out_index = 0;
     for (int i = 0; i < numDevices; i++) {
       if (!AudioDevice(i).hasOutput()) continue;
 
-      state.devices.push_back(AudioDevice(i).name());
+      state.devicesOut.push_back(AudioDevice(i).name());
       if (currentAudioDeviceOut == AudioDevice(i).name()) {
         state.currentDeviceOut = dev_out_index;
         state.currentOut = getLeadChannelOut() + 1;
@@ -1027,13 +1064,13 @@ void CHON::drawAudioIO(AudioIO *io) {
   };
 
   auto updateInDevices = [&](AudioIOState &state) {
-    state.devices.clear();
+    state.devicesIn.clear();
     int numDevices = AudioDevice::numDevices();
     int dev_in_index = 0;
     for (int i = 0; i < numDevices; i++) {
       if (!AudioDevice(i).hasInput()) continue;
 
-      state.devices.push_back(AudioDevice(i).name());
+      state.devicesIn.push_back(AudioDevice(i).name());
       if (currentAudioDeviceIn == AudioDevice(i).name()) {
         state.currentDeviceIn = dev_in_index;
         state.currentIn = getLeadChannelIn() + 1;
@@ -1054,8 +1091,8 @@ void CHON::drawAudioIO(AudioIO *io) {
 
   if (io->isOpen()) {
     std::string text;
-    text += "Output Device: " + state.devices.at(state.currentDeviceOut);
-    text += "\nInput Device: " + state.devices.at(state.currentDeviceIn);
+    text += "Output Device: " + state.devicesOut.at(state.currentDeviceOut);
+    text += "\nInput Device: " + state.devicesIn.at(state.currentDeviceIn);
     text += "\nSampling Rate: " + std::to_string(int(io->fps()));
     text += "\nBuffer Size: " + std::to_string(io->framesPerBuffer());
     text += "\nOutput Channels: " + std::to_string(state.currentOut) + ", " +
@@ -1076,25 +1113,23 @@ void CHON::drawAudioIO(AudioIO *io) {
     }
 
     ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
+    ImGui::Text("Output");
     if (ImGui::Combo("Output Device", &state.currentDeviceOut, ParameterGUI::vector_getter,
-                     static_cast<void *>(&state.devices), state.devices.size())) {
+                     static_cast<void *>(&state.devicesOut), state.devicesOut.size())) {
       state.currentMaxOut =
-        AudioDevice(state.devices.at(state.currentDeviceOut), AudioDevice::OUTPUT).channelsOutMax();
+        AudioDevice(state.devicesOut.at(state.currentDeviceOut), AudioDevice::OUTPUT).channelsOutMax();
     }
     std::string chan_label_out =
       "Select Outs: (Up to " + std::to_string(state.currentMaxOut) + " )";
     ImGui::Text(chan_label_out.c_str(), "%s");
-    // ImGui::SameLine();
-    // ImGui::Checkbox("Mono/Stereo", &isStereo);
-    // ImGui::Indent(25 * fontScale);
-    // ImGui::PushItemWidth(50 * fontScale);
+    ImGui::SameLine();
     ImGui::DragInt("Chan 1 out", &state.currentOut, 1.0f, 0, state.currentMaxOut - 1, "%d", 1 << 4);
 
     if (state.currentOut > state.currentMaxOut - 1) state.currentOut = state.currentMaxOut - 1;
     if (state.currentOut < 1) state.currentOut = 1;
 
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
-    for (int i = 1; i < MAX_AUDIO_OUTS; i++) {
+    for (int i = 1; i < consts::MAX_AUDIO_OUTS; i++) {
       ImGui::SameLine();
       int temp = state.currentOut + i;
       std::string channel = "Chan " + std::to_string(i + 1);
@@ -1106,24 +1141,22 @@ void CHON::drawAudioIO(AudioIO *io) {
     ImGui::PopItemWidth();
 
     ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
+    ImGui::Text("Input");
     if (ImGui::Combo("Input Device", &state.currentDeviceIn, ParameterGUI::vector_getter,
-                     static_cast<void *>(&state.devices), state.devices.size())) {
+                     static_cast<void *>(&state.devicesIn), state.devicesIn.size())) {
       state.currentMaxIn =
-        AudioDevice(state.devices.at(state.currentDeviceIn), AudioDevice::INPUT).channelsInMax();
+        AudioDevice(state.devicesIn.at(state.currentDeviceIn), AudioDevice::INPUT).channelsInMax();
     }
     std::string chan_label_in = "Select Ins: (Up to " + std::to_string(state.currentMaxIn) + " )";
     ImGui::Text(chan_label_in.c_str(), "%s");
-    // ImGui::SameLine();
-    // ImGui::Checkbox("Mono/Stereo", &isStereo);
-    // ImGui::Indent(25 * fontScale);
-    // ImGui::PushItemWidth(50 * fontScale);
+    ImGui::SameLine();
     ImGui::DragInt("Chan 1 in", &state.currentIn, 1.0f, 0, state.currentMaxIn - 1, "%d", 1 << 4);
 
     if (state.currentIn > state.currentMaxIn - 1) state.currentIn = state.currentMaxIn - 1;
     if (state.currentIn < 1) state.currentIn = 1;
 
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
-    for (int i = 1; i < MAX_AUDIO_INS; i++) {
+    for (int i = 1; i < consts::MAX_AUDIO_INS; i++) {
       ImGui::SameLine();
       int temp = state.currentIn + i;
       std::string channel = "Chan " + std::to_string(i + 1);
@@ -1141,11 +1174,11 @@ void CHON::drawAudioIO(AudioIO *io) {
       globalSamplingRate = std::stof(samplingRates[state.currentSr]);
       io->framesPerSecond(globalSamplingRate);
       io->framesPerBuffer(BLOCK_SIZE);
-      io->deviceOut(AudioDevice(state.devices.at(state.currentDeviceOut), AudioDevice::OUTPUT));
-      currentAudioDeviceOut = state.devices.at(state.currentDeviceOut);
+      io->deviceOut(AudioDevice(state.devicesOut.at(state.currentDeviceOut), AudioDevice::OUTPUT));
+      currentAudioDeviceOut = state.devicesOut.at(state.currentDeviceOut);
       setOutChannels(state.currentOut - 1, state.currentMaxOut);
-      io->deviceIn(AudioDevice(state.devices.at(state.currentDeviceIn), AudioDevice::INPUT));
-      currentAudioDeviceIn = state.devices.at(state.currentDeviceIn);
+      io->deviceIn(AudioDevice(state.devicesIn.at(state.currentDeviceIn), AudioDevice::INPUT));
+      currentAudioDeviceIn = state.devicesIn.at(state.currentDeviceIn);
       setInChannels(state.currentIn - 1, state.currentMaxIn);
       io->open();
       io->start();
