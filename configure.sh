@@ -28,13 +28,35 @@ rm -f external/al_ext/statedistribution/CMakeLists.txt
   fi
 )
 
+JACKSUPPORT=1
+# Check flags to see if user wants to remove JACK support for pipewire compatibility
+PIPEWIRE=$1
+
+if [[ "$PIPEWIRE" == "" ]]; then
+  echo "
+
+  CONFIGURING EC2 WITH JACK SUPPORT. THERE MAY BE ISSUES ON SYSTEMS RUNNING PIPEWIRE!
+  To build without jack for pipewire compatibility, run run configure with the argument "pipewire" (i.e. ./configure.sh pipewire)
+
+  "
+elif [[ "$PIPEWIRE" == "pipewire" ]]; then
+  echo "
+
+  CONFIGURING EC2 WITHOUT JACK FOR PIPEWIRE COMPATIBILITY.
+
+  "
+  JACKSUPPORT=0
+fi
+
+# CMake configure Release
+
 (
   mkdir -p build
   cd build
   mkdir -p release
   cd release
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    cmake -DCMAKE_BUILD_TYPE=Release -Wno-deprecated -DBUILD_EXAMPLES=0 -DRTAUDIO_API_JACK=1 -DRTMIDI_API_JACK=1 ../..
+    cmake -DCMAKE_BUILD_TYPE=Release -Wno-deprecated -DBUILD_EXAMPLES=0 -DRTAUDIO_API_JACK=$JACKSUPPORT -DRTMIDI_API_JACK=1 ../..
   elif [[ "$OSTYPE" == "darwin"* ]]; then
     cmake -DCMAKE_BUILD_TYPE=Release -Wno-deprecated -DBUILD_EXAMPLES=0 -DRTAUDIO_API_JACK=0 -DRTMIDI_API_JACK=0 ../..
   elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then

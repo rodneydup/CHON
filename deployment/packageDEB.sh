@@ -4,6 +4,8 @@ if [ $result == "deployment" ]; then
   cd ..
 fi
 
+rm -rf deployment/Linux
+
 mkdir -p "deployment/Linux/"
 
 if [ $# -eq 0 ]; then
@@ -87,6 +89,8 @@ License: GPL-3+
  '/usr/share/common-licenses/GPL-3'" >>"$BUILDDIR/usr/share/doc/CHON/copyright"
 DATE="$(date +'%a, %d %b %Y %H:%M:%S %Z')"
 echo "CHON ($VERSION) stable; urgency=high
+  * Many bugfixes and feature additions
+ -- Rodney DuPlessis <rodney@rodneyduplessis.com>  $DATE
   * Initial Release
  -- Rodney DuPlessis <rodney@rodneyduplessis.com>  $DATE" >>"$BUILDDIR/usr/share/doc/CHON/changelog.Debian"
 gzip -9 -n "$BUILDDIR/usr/share/doc/CHON/changelog.Debian"
