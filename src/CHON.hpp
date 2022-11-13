@@ -225,7 +225,7 @@ class CHON : public App {
   OSC
   */
   int port = 16447;             // osc port
-  char addr[10] = "127.0.0.1";  // ip address
+  char addr[15] = "127.0.0.1";  // ip address
   osc::Send client;             // create an osc client
   ParameterBool oscOn{"OSC On", "OSC", 0};
   ParameterBool oscX{"X disp", "OSC", 0};
