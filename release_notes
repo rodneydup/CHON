@@ -8,3 +8,7 @@ New Features
 - User can now right click particles to change some parameters
 - Added a sound output recorder under Audio window
 - New functionality: drive the particles with audio input
+
+Version 1.3
+
+- Bug Fix: increased max length of OSC IP addresses to 15 to match max length of IPv4 addresses. (Thanks to Heinz Hartfiel)
